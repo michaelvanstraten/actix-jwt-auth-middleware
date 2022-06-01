@@ -1,5 +1,5 @@
 [package]
-name = "actix-jwt-auth-middleware-macros"
+name = "actix-jwt-auth-middleware-derive"
 version = "0.1.0"
 edition = "2021"
 authors = ["Michael van Straten"]
