@@ -3,12 +3,14 @@ use jwt_compact::{CreationError, ParseError, ValidationError};
 
 pub type AuthResult<T> = Result<T, AuthError>;
 
+
+/// if #[cfg(debug_assertions)] is true the wrapped errors (TokenCreation, TokenValidation, TokenParse) are in included in the error message
 #[derive(Debug)]
 pub enum AuthError {
+    /// returned if there is no cookie under the `Authority::cookie_name` name
     NoCookie,
+    /// returned if the guard function returns false
     Unauthorized,
-    Invalid,
-    Expired,
     TokenCreation(CreationError),
     TokenValidation(ValidationError),
     TokenParse(ParseError),
@@ -57,8 +59,6 @@ impl std::fmt::Display for AuthError {
             AuthError::Unauthorized => {
                 f.write_str("you are not authorized to interact with this scope")
             }
-            AuthError::Invalid => f.write_str("something went wrong parsing your token"),
-            AuthError::Expired => f.write_str("your token is expired"),
             AuthError::TokenCreation(err) => f.write_fmt(format_args!(
                 "there was an internal error creating your token.\n\n Error: \"{err}\""
             )),
@@ -77,8 +77,6 @@ impl ResponseError for AuthError {
         match self {
             AuthError::NoCookie => StatusCode::UNAUTHORIZED,
             AuthError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AuthError::Invalid => StatusCode::UNPROCESSABLE_ENTITY,
-            AuthError::Expired => StatusCode::UNAUTHORIZED,
             AuthError::TokenCreation(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
