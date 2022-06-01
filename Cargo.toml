@@ -1,6 +1,6 @@
 [package]
 name = "actix-jwt-auth-middleware"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Michael van Straten"]
 repository = "https://github.com/michaelvanstraten/actix-jwt-auth-middleware"
