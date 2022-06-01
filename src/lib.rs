@@ -129,4 +129,4 @@ pub use authority::*;
 pub use errors::*;
 use middleware::*;
 pub use service::*;
-pub use actix_jwt_auth_middleware_macros::FromRequest;
+pub use actix_jwt_auth_middleware_derive::FromRequest;
