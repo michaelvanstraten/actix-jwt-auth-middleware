@@ -1,0 +1,28 @@
+[package]
+name = "actix-jwt-auth-middleware"
+version = "0.1.0"
+edition = "2021"
+authors = ["Michael van Straten"]
+repository = "https://github.com/michaelvanstraten/actix-jwt-auth-middleware"
+documentation = "https://docs.rs/actix-jwt-auth-middleware/"
+keywords = ["web", "futures", "utility", "actix-web", "error-handling"]
+categories = ["Authentication", "Cryptography"]
+readme = "readme.md"
+description = "This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework."
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rand = "0.7"
+ed25519-dalek = "1.0.1"
+serde = "1.0"
+actix-web="^4"
+jwt-compact = { version = "0.5.0", features = ["ed25519-dalek"] } 
+actix-jwt-auth-middleware-macros = { path = "./macros" } 
+
+serde_cbor = "0.11.1"
+futures-util = "0.3.21"
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
