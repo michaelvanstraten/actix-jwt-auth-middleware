@@ -1,31 +1,53 @@
+use crate::AuthError;
+
 use super::Authority;
 use actix_web::{
     body::MessageBody,
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse},
-    Error, FromRequest, Handler,
+    Error, FromRequest, Handler, HttpMessage,
 };
 use futures_util::future::{FutureExt as _, LocalBoxFuture};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{rc::Rc, sync::Arc};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-pub struct AuthenticationMiddleware<S, C, F, Args>
+pub struct AuthenticationMiddleware<S, Claims, Guard, Args>
 where
-    F: Handler<Args>,
-    F::Output: PartialEq<bool>,
+    Guard: Handler<Args>,
+    Guard::Output: PartialEq<bool>,
     Args: FromRequest,
 {
     pub service: Rc<S>,
-    pub inner: Arc<Authority<C, F, Args>>,
+    pub inner: Arc<Authority<Claims>>,
+    guard: Guard,
+    _claim: PhantomData<Claims>,
+    _args: PhantomData<Args>,
 }
 
-impl<S, B, C, F, Args> Service<ServiceRequest> for AuthenticationMiddleware<S, C, F, Args>
+impl<S, Claims, Guard, Args> AuthenticationMiddleware<S, Claims, Guard, Args>
+where
+    Guard: Handler<Args>,
+    Guard::Output: PartialEq<bool>,
+    Args: FromRequest,
+{
+    pub fn new(service: Rc<S>, inner: Arc<Authority<Claims>>, guard: Guard) -> Self {
+        Self {
+            service,
+            inner,
+            guard,
+            _claim: PhantomData,
+            _args: PhantomData,
+        }
+    }
+}
+
+impl<S, B, Claims, Guard, Args> Service<ServiceRequest> for AuthenticationMiddleware<S, Claims, Guard, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    C: Serialize + DeserializeOwned + Clone + 'static,
+    Claims: Serialize + DeserializeOwned + Clone + 'static,
     B: MessageBody,
-    F: Handler<Args>,
-    F::Output: PartialEq<bool>,
+    Guard: Handler<Args>,
+    Guard::Output: PartialEq<bool> + 'static,
     Args: FromRequest + 'static,
 {
     type Response = ServiceResponse<B>;
@@ -37,10 +59,24 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let inner = Arc::clone(&self.inner);
         let service = Rc::clone(&self.service);
+        let guard = self.guard.clone();
 
         async move {
             match inner.verify_service_request(req).await {
-                Ok(req) => service.call(req).await,
+                Ok(mut req) => {
+                    let (mut_req, mut payload) = req.parts_mut();
+                    match Args::from_request(&mut_req, &mut payload).await {
+                        Ok(args) => {
+                            if guard.call(args).await == true {
+                                service.call(req).await
+                            } else {
+                                req.extensions_mut().remove::<Claims>();
+                                Err(AuthError::Unauthorized.into())
+                            }
+                        }
+                        Err(err) => Err(err.into()),
+                    }
+                }
                 Err(err) => Err(err.into()),
             }
         }
