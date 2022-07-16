@@ -1,6 +1,6 @@
 [package]
 name = "actix-jwt-auth-middleware-derive"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Michael van Straten"]
 documentation = "https://docs.rs/actix-jwt-auth-middleware-derive/"
