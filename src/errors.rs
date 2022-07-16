@@ -3,7 +3,6 @@ use jwt_compact::{CreationError, ParseError, ValidationError};
 
 pub type AuthResult<T> = Result<T, AuthError>;
 
-
 /// if #[cfg(debug_assertions)] is true the wrapped errors (TokenCreation, TokenValidation, TokenParse) are in included in the error message
 #[derive(Debug)]
 pub enum AuthError {

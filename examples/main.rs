@@ -27,17 +27,18 @@ async fn verify_service_request(user_claims: UserClaims) -> bool {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // we initialize a new Authority with a guard function
+    // we initialize a new Authority passing the underling type the JWT token should destructure into.
     let auth_authority = Authority::<UserClaims>::default();
-
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(auth_authority.clone()))
             .service(login)
             .service(login_as_base_user)
-            // in order to wrap the entire app scope excluding the login handlers we have add a new service first
+            // in order to wrap the entire app scope excluding the login handlers we have add a new service
+            // with an empty scope first
             .service(web::scope("").service(hello).wrap(AuthService::new(
                 auth_authority.clone(),
+                // we pass the guard function to use with this auth service
                 verify_service_request,
             )))
     })

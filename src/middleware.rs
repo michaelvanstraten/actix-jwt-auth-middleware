@@ -40,7 +40,8 @@ where
     }
 }
 
-impl<S, B, Claims, Guard, Args> Service<ServiceRequest> for AuthenticationMiddleware<S, Claims, Guard, Args>
+impl<S, B, Claims, Guard, Args> Service<ServiceRequest>
+    for AuthenticationMiddleware<S, Claims, Guard, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,

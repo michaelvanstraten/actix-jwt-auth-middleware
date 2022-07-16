@@ -36,8 +36,16 @@ impl<C: Serialize + DeserializeOwned + Clone + 'static> Authority<C> {
             .finish())
     }
 
+    pub fn create_token(&self, claims: C) -> AuthResult<String> {
+        let claims = TokenClaims::new(claims);
+        Ed25519
+            .compact_token(self.header.clone(), &claims, &self.key_pair)
+            .map_err(|err| AuthError::TokenCreation(err))
+    }
+
     pub async fn verify_service_request(&self, req: ServiceRequest) -> AuthResult<ServiceRequest> {
         let token = self.extract_from_cookie(req.cookie(self.cookie_name))?;
+
         req.extensions_mut().insert(token.claims().custom.clone());
         Ok(req)
     }
