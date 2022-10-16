@@ -4,6 +4,8 @@ use actix_web::{
     web::{self, Data},
     App, HttpResponse, HttpServer, Responder,
 };
+use exonum_crypto::KeyPair;
+use jwt_compact::{alg::Ed25519, Header};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, FromRequest)]
@@ -27,8 +29,15 @@ async fn verify_service_request(user_claims: UserClaims) -> bool {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let key_pair = KeyPair::random();
     // we initialize a new Authority passing the underling type the JWT token should destructure into.
-    let auth_authority = Authority::<UserClaims>::default();
+    let auth_authority = Authority::<UserClaims, Ed25519>::new(
+        "auth-token",
+        key_pair.secret_key().clone(),
+        key_pair.public_key(),
+        Header::default(),
+        Ed25519,
+    );
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(auth_authority.clone()))
@@ -54,7 +63,9 @@ async fn hello(user_claims: UserClaims) -> impl Responder {
 
 // calling this route will give you access to the rest of the apps scopes
 #[get("/login")]
-async fn login(auth_authority: Data<Authority<UserClaims>>) -> Result<HttpResponse, AuthError> {
+async fn login(
+    auth_authority: Data<Authority<UserClaims, Ed25519>>,
+) -> Result<HttpResponse, AuthError> {
     let cookie = auth_authority.create_signed_cookie(UserClaims {
         id: 69,
         role: Role::Admin,
@@ -68,7 +79,7 @@ async fn login(auth_authority: Data<Authority<UserClaims>>) -> Result<HttpRespon
 // calling this route will not give you access to the rest of the apps scopes because you are not an admin
 #[get("/login-as-base-user")]
 async fn login_as_base_user(
-    auth_authority: Data<Authority<UserClaims>>,
+    auth_authority: Data<Authority<UserClaims, Ed25519>>,
 ) -> Result<HttpResponse, AuthError> {
     let cookie = auth_authority.create_signed_cookie(UserClaims {
         id: 69,

@@ -65,8 +65,8 @@ impl std::fmt::Display for AuthError {
                 "it seems your token could not be verified.\n\n Error: \"{err}\""
             )),
             AuthError::TokenParse(err) => f.write_fmt(format_args!(
-                "it seems there hasebeen an error parsing your token.\n\n Error: \"{err}\""
-            )),
+                "it seems there has been an error parsing your token.\n\n Error: \"{err}\""
+            ))
         }
     }
 }

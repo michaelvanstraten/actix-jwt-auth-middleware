@@ -10,26 +10,28 @@ use futures_util::future::{FutureExt as _, LocalBoxFuture};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-pub struct AuthenticationMiddleware<S, Claims, Guard, Args>
+pub struct AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args>
 where
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool>,
     Args: FromRequest,
+    Algorithm: jwt_compact::Algorithm,
 {
     pub service: Rc<S>,
-    pub inner: Arc<Authority<Claims>>,
+    pub inner: Arc<Authority<Claims, Algorithm>>,
     guard: Guard,
     _claim: PhantomData<Claims>,
     _args: PhantomData<Args>,
 }
 
-impl<S, Claims, Guard, Args> AuthenticationMiddleware<S, Claims, Guard, Args>
+impl<S, Claims, Algorithm, Guard, Args> AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args>
 where
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool>,
     Args: FromRequest,
+    Algorithm: jwt_compact::Algorithm,
 {
-    pub fn new(service: Rc<S>, inner: Arc<Authority<Claims>>, guard: Guard) -> Self {
+    pub fn new(service: Rc<S>, inner: Arc<Authority<Claims, Algorithm>>, guard: Guard) -> Self {
         Self {
             service,
             inner,
@@ -40,12 +42,13 @@ where
     }
 }
 
-impl<S, B, Claims, Guard, Args> Service<ServiceRequest>
-    for AuthenticationMiddleware<S, Claims, Guard, Args>
+impl<S, B, Claims, Algorithm, Guard, Args> Service<ServiceRequest>
+    for AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Algorithm: jwt_compact::Algorithm + 'static,
     B: MessageBody,
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool> + 'static,

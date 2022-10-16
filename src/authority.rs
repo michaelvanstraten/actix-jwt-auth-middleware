@@ -2,44 +2,47 @@ use std::marker::PhantomData;
 
 use super::{AuthError, AuthResult};
 use actix_web::{cookie::Cookie, dev::ServiceRequest, HttpMessage};
-use ed25519_dalek::Keypair;
-use jwt_compact::{
-    alg::Ed25519, AlgorithmExt, Claims as TokenClaims, Header, Token, UntrustedToken,
+use jwt_compact::{ AlgorithmExt, Claims as TokenClaims, Header, Token, UntrustedToken,
 };
-use rand::rngs::OsRng;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub struct Authority<Claims> {
+pub struct Authority<Claims, Algorithm: jwt_compact::Algorithm> {
     pub cookie_name: &'static str,
-    key_pair: Keypair,
+    algorithm: Algorithm,
+    signing_key: Algorithm::SigningKey,
+    verifying_key: Algorithm::VerifyingKey,
     header: Header,
     _claims: PhantomData<Claims>,
 }
 
-impl<C: Serialize + DeserializeOwned + Clone + 'static> Authority<C> {
-    pub fn new(cookie_name: &'static str, key_pair: Keypair, header: Header) -> Self {
+impl<C: Serialize + DeserializeOwned + Clone + 'static, Algorithm: jwt_compact::Algorithm> Authority<C, Algorithm> {
+    pub fn new(
+        cookie_name: &'static str,
+        signing_key: Algorithm::SigningKey,
+        verifying_key: Algorithm::VerifyingKey,
+        header: Header,
+        algorithm: Algorithm,
+    ) -> Self {
         Self {
             cookie_name,
-            key_pair,
+            signing_key,
+            verifying_key,
             header,
+            algorithm: algorithm,
             _claims: PhantomData,
         }
     }
 
     pub fn create_signed_cookie(&self, claims: C) -> AuthResult<Cookie> {
-        let claims = TokenClaims::new(claims);
-        let compact_token = Ed25519
-            .compact_token(self.header.clone(), &claims, &self.key_pair)
-            .map_err(|err| AuthError::TokenCreation(err))?;
-        Ok(Cookie::build(self.cookie_name, compact_token)
+        Ok(Cookie::build(self.cookie_name, self.create_token(claims)?)
             .secure(true)
             .finish())
     }
 
     pub fn create_token(&self, claims: C) -> AuthResult<String> {
         let claims = TokenClaims::new(claims);
-        Ed25519
-            .compact_token(self.header.clone(), &claims, &self.key_pair)
+        self.algorithm
+            .compact_token(self.header.clone(), &claims, &self.signing_key)
             .map_err(|err| AuthError::TokenCreation(err))
     }
 
@@ -54,7 +57,7 @@ impl<C: Serialize + DeserializeOwned + Clone + 'static> Authority<C> {
         if let Some(token_cookie) = cookie {
             match UntrustedToken::new(token_cookie.value()) {
                 Ok(untrusted_token) => {
-                    match Ed25519.validate_integrity::<C>(&untrusted_token, &self.key_pair.public) {
+                    match self.algorithm.validate_integrity::<C>(&untrusted_token, &self.verifying_key) {
                         Ok(token) => Ok(token),
                         Err(err) => Err(err.into()),
                     }
@@ -67,25 +70,20 @@ impl<C: Serialize + DeserializeOwned + Clone + 'static> Authority<C> {
     }
 }
 
-impl<C> Clone for Authority<C> {
+impl<Claims, Algorithm> Clone for Authority<Claims, Algorithm>
+where
+    Algorithm: jwt_compact::Algorithm + Clone,
+    Algorithm::SigningKey: Clone,
+    Algorithm::VerifyingKey: Clone,
+{
     fn clone(&self) -> Self {
         Self {
             cookie_name: self.cookie_name.clone(),
-            key_pair: Keypair::from_bytes(&self.key_pair.to_bytes()).unwrap(),
+            signing_key: self.signing_key.clone(),
+            verifying_key: self.verifying_key.clone(),
+            algorithm: self.algorithm.clone(),
             header: self.header.clone(),
-            _claims: PhantomData,
-        }
-    }
-}
-
-impl<C> Default for Authority<C> {
-    fn default() -> Self {
-        let mut csprng = OsRng {};
-        Self {
-            cookie_name: "auth-token",
-            key_pair: Keypair::generate(&mut csprng),
-            header: Header::default(),
-            _claims: PhantomData,
+            _claims: self._claims.clone(),
         }
     }
 }

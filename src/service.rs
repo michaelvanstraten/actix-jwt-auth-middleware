@@ -8,26 +8,28 @@ use futures_util::future;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
-pub struct AuthService<Claims, Guard, Args>
+pub struct AuthService<Claims, Algorithm, Guard, Args>
 where
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool>,
     Args: FromRequest,
+    Algorithm: jwt_compact::Algorithm,
 {
-    pub inner: Authority<Claims>,
+    pub inner: Authority<Claims, Algorithm>,
     guard: Guard,
     _claim: PhantomData<Claims>,
     _args: PhantomData<Args>,
 }
 
-impl<Claims, Guard, Args> AuthService<Claims, Guard, Args>
+impl<Claims, Algorithm, Guard, Args> AuthService<Claims, Algorithm, Guard, Args>
 where
     Claims: DeserializeOwned,
+    Algorithm: jwt_compact::Algorithm,
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool>,
     Args: FromRequest,
 {
-    pub fn new(authority: Authority<Claims>, guard: Guard) -> AuthService<Claims, Guard, Args> {
+    pub fn new(authority: Authority<Claims, Algorithm>, guard: Guard) -> AuthService<Claims, Algorithm, Guard, Args> {
         AuthService {
             inner: authority,
             guard,
@@ -37,20 +39,23 @@ where
     }
 }
 
-impl<S, B, Claims, Guard, Args> Transform<S, ServiceRequest> for AuthService<Claims, Guard, Args>
+impl<S, B, Claims, Algorithm, Guard, Args> Transform<S, ServiceRequest> for AuthService<Claims, Algorithm, Guard, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Algorithm: jwt_compact::Algorithm + Clone + 'static,
+    Algorithm::SigningKey: Clone,
+    Algorithm::VerifyingKey: Clone,
     B: MessageBody,
     Guard: Handler<Args>,
     Guard::Output: PartialEq<bool>,
     Args: FromRequest + 'static,
 {
     type Response =
-        <AuthenticationMiddleware<S, Claims, Guard, Args> as Service<ServiceRequest>>::Response;
+        <AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args> as Service<ServiceRequest>>::Response;
     type Error = Error;
-    type Transform = AuthenticationMiddleware<S, Claims, Guard, Args>;
+    type Transform = AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args>;
     type InitError = ();
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 
