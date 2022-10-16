@@ -2,8 +2,7 @@ use std::marker::PhantomData;
 
 use super::{AuthError, AuthResult};
 use actix_web::{cookie::Cookie, dev::ServiceRequest, HttpMessage};
-use jwt_compact::{ AlgorithmExt, Claims as TokenClaims, Header, Token, UntrustedToken,
-};
+use jwt_compact::{AlgorithmExt, Claims as TokenClaims, Header, Token, UntrustedToken};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub struct Authority<Claims, Algorithm: jwt_compact::Algorithm> {
@@ -15,7 +14,9 @@ pub struct Authority<Claims, Algorithm: jwt_compact::Algorithm> {
     _claims: PhantomData<Claims>,
 }
 
-impl<C: Serialize + DeserializeOwned + Clone + 'static, Algorithm: jwt_compact::Algorithm> Authority<C, Algorithm> {
+impl<Claims: Serialize + DeserializeOwned + Clone + 'static, Algorithm: jwt_compact::Algorithm>
+    Authority<Claims, Algorithm>
+{
     pub fn new(
         cookie_name: &'static str,
         signing_key: Algorithm::SigningKey,
@@ -33,13 +34,13 @@ impl<C: Serialize + DeserializeOwned + Clone + 'static, Algorithm: jwt_compact::
         }
     }
 
-    pub fn create_signed_cookie(&self, claims: C) -> AuthResult<Cookie> {
+    pub fn create_signed_cookie(&self, claims: Claims) -> AuthResult<Cookie> {
         Ok(Cookie::build(self.cookie_name, self.create_token(claims)?)
             .secure(true)
             .finish())
     }
 
-    pub fn create_token(&self, claims: C) -> AuthResult<String> {
+    pub fn create_token(&self, claims: Claims) -> AuthResult<String> {
         let claims = TokenClaims::new(claims);
         self.algorithm
             .compact_token(self.header.clone(), &claims, &self.signing_key)
@@ -53,11 +54,14 @@ impl<C: Serialize + DeserializeOwned + Clone + 'static, Algorithm: jwt_compact::
         Ok(req)
     }
 
-    fn extract_from_cookie(&self, cookie: Option<Cookie>) -> AuthResult<Token<C>> {
+    fn extract_from_cookie(&self, cookie: Option<Cookie>) -> AuthResult<Token<Claims>> {
         if let Some(token_cookie) = cookie {
             match UntrustedToken::new(token_cookie.value()) {
                 Ok(untrusted_token) => {
-                    match self.algorithm.validate_integrity::<C>(&untrusted_token, &self.verifying_key) {
+                    match self
+                        .algorithm
+                        .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
+                    {
                         Ok(token) => Ok(token),
                         Err(err) => Err(err.into()),
                     }

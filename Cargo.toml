@@ -14,13 +14,13 @@ license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = "1.0"
+serde = "1.0.145"
 actix-web="^4"
 jwt-compact = { version = "0.5.0", features = ["exonum-crypto"] } 
-actix-jwt-auth-middleware-derive = "^0.1" 
-serde_cbor = "0.11.1"
+actix-jwt-auth-middleware-derive = "^0.1"
 futures-util = "0.3.21"
 
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }
 exonum-crypto = "1.0.0"
+serde_cbor = "0.11.2"

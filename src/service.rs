@@ -29,7 +29,10 @@ where
     Guard::Output: PartialEq<bool>,
     Args: FromRequest,
 {
-    pub fn new(authority: Authority<Claims, Algorithm>, guard: Guard) -> AuthService<Claims, Algorithm, Guard, Args> {
+    pub fn new(
+        authority: Authority<Claims, Algorithm>,
+        guard: Guard,
+    ) -> AuthService<Claims, Algorithm, Guard, Args> {
         AuthService {
             inner: authority,
             guard,
@@ -39,7 +42,8 @@ where
     }
 }
 
-impl<S, B, Claims, Algorithm, Guard, Args> Transform<S, ServiceRequest> for AuthService<Claims, Algorithm, Guard, Args>
+impl<S, B, Claims, Algorithm, Guard, Args> Transform<S, ServiceRequest>
+    for AuthService<Claims, Algorithm, Guard, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
@@ -52,8 +56,9 @@ where
     Guard::Output: PartialEq<bool>,
     Args: FromRequest + 'static,
 {
-    type Response =
-        <AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args> as Service<ServiceRequest>>::Response;
+    type Response = <AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args> as Service<
+        ServiceRequest,
+    >>::Response;
     type Error = Error;
     type Transform = AuthenticationMiddleware<S, Claims, Algorithm, Guard, Args>;
     type InitError = ();
