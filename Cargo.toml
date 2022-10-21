@@ -15,12 +15,18 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 serde = "1.0.145"
-actix-web="^4"
-jwt-compact = { version = "0.5.0", features = ["exonum-crypto"] } 
+actix-web = { version = "4.2.1", default-features = false, features = ["cookies"]}
+derive_builder = "0.11.2"
+jwt-compact = { version = "0.5.0", default-features = false, features = ["std", "clock", "exonum-crypto"] } 
 actix-jwt-auth-middleware-derive = "^0.1"
 futures-util = "0.3.21"
+chrono = "0.4.22"
 
 [dev-dependencies]
-serde = { version = "1.0", features = ["derive"] }
 exonum-crypto = "1.0.0"
-serde_cbor = "0.11.2"
+
+[dev-dependencies.actix-web]
+default-features = true
+
+[dev-dependencies.serde]
+features = ["derive"]
