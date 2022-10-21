@@ -1,4 +1,4 @@
-use actix_jwt_auth_middleware::{AuthError, AuthService, Authority, FromRequest};
+use actix_jwt_auth_middleware::{AuthError, AuthService, Authority, FromRequest, JWTRequired};
 use actix_web::{
     get,
     web::{self, Data},
@@ -19,33 +19,28 @@ enum Role {
 async fn main() -> std::io::Result<()> {
     let key_pair = KeyPair::random();
 
-    let auth_authority = Authority::<Role, _, _, _>::new()
+    let authority = Authority::<Role, _, _, _>::new()
                             .re_authorizer(|_: Role| async move { Ok(()) })
+                            .signing_key(key_pair.secret_key().clone())
+                            .verifying_key(key_pair.public_key().clone())
                             .algorithm(Ed25519)
                             .build()
                             .unwrap();
 
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(auth_authority.clone()))
-            // .service(login)
-            // in order to wrap the entire app scope excluding the login handlers we have add a new service
-            // with an empty scope first
             .service(
                 web::scope("")
                     .service(hello)
-                    // .wrap(AuthService::new(auth_authority.clone(), || async { true })),
+                    .jwt_required(authority.clone())
             )
             .service(
-                web::scope("admin-only")
+                web::scope("/admin-only")
+                    .jwt_required(authority.clone())
                     .route(
                         "/",
                         web::get().to(|| async { "You are definitely a admin!" }),
                     )
-                    .wrap(AuthService::new(
-                        auth_authority.clone(),
-                        |role: Role| async move { role.eq(&Role::Admin) },
-                    )),
             )
     })
     .bind(("127.0.0.1", 42069))?

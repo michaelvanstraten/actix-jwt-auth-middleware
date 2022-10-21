@@ -11,7 +11,8 @@ readme = "readme.md"
 description = "This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework."
 license = "MIT OR Apache-2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+jwt_required_trait = []
 
 [dependencies]
 serde = "1.0.145"
