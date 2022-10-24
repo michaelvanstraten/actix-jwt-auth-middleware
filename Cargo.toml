@@ -12,7 +12,7 @@ description = "This crate implements a JSON Webtoken (JWT) middleware for the ac
 license = "MIT OR Apache-2.0"
 
 [features]
-jwt_required_trait = []
+use_jwt_traits = []
 
 [dependencies]
 serde = "1.0.145"

@@ -131,24 +131,30 @@ async fn login_as_base_user(
 */
 
 #![allow(incomplete_features)]
-#![cfg_attr(feature="jwt_required_trait", feature(return_position_impl_trait_in_trait))]
-#[cfg(feature="jwt_required_trait")]
-mod jwt_required;
-#[cfg(feature="jwt_required_trait")]
-pub use jwt_required::*;
+#![cfg_attr(
+    feature = "use_jwt_traits",
+    feature(return_position_impl_trait_in_trait)
+)]
+#[cfg(feature = "use_jwt_traits")]
+mod use_jwt;
+#[cfg(feature = "use_jwt_traits")]
+pub use use_jwt::{
+    App as UseJWTOnApp,
+    Scope as UseJWTOnScope,
+    Resource as UseJWTOnResource
+};
 
 mod authority;
+mod cookie_signer;
 mod errors;
 mod middleware;
 mod service;
-
 
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;
 
 pub use authority::*;
+pub use cookie_signer::*;
 pub use errors::*;
 use middleware::*;
 pub use service::*;
-
-

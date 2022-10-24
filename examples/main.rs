@@ -1,9 +1,7 @@
-use actix_jwt_auth_middleware::{AuthError, AuthService, Authority, FromRequest, JWTRequired};
-use actix_web::{
-    get,
-    web::{self, Data},
-    App, HttpResponse, HttpServer, Responder,
+use actix_jwt_auth_middleware::{
+    Authority, CookieSigner, FromRequest, UseJWTOnApp,
 };
+use actix_web::{get, web, App, HttpServer, Responder};
 use exonum_crypto::KeyPair;
 use jwt_compact::alg::Ed25519;
 use serde::{Deserialize, Serialize};
@@ -16,52 +14,37 @@ enum Role {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
     let authority = Authority::<Role, _, _, _>::new()
-                            .re_authorizer(|_: Role| async move { Ok(()) })
-                            .signing_key(key_pair.secret_key().clone())
-                            .verifying_key(key_pair.public_key().clone())
-                            .algorithm(Ed25519)
-                            .build()
-                            .unwrap();
+        .re_authorizer(|| async move { Ok(()) })
+        .cookie_signer(
+            CookieSigner::new()
+                .signing_key(key_pair.secret_key().clone())
+                .algorithm(Ed25519)
+                .build()?,
+        )
+        .verifying_key(key_pair.public_key().clone())
+        .build()?;
 
-    HttpServer::new(move || {
+    Ok(HttpServer::new(move || {
         App::new()
-            .service(
-                web::scope("")
-                    .service(hello)
-                    .jwt_required(authority.clone())
-            )
+            .use_jwt(authority.clone())
             .service(
                 web::scope("/admin-only")
-                    .jwt_required(authority.clone())
                     .route(
                         "/",
                         web::get().to(|| async { "You are definitely a admin!" }),
-                    )
+                    ),
             )
     })
     .bind(("127.0.0.1", 42069))?
     .run()
-    .await
+    .await?)
 }
 
 #[get("/hello")]
 async fn hello(role: Role) -> impl Responder {
     format!("Hello there, i see you are a {role:?}.")
 }
-
-// calling this route will log you in as a Admin/User dependent on the path.
-// #[get("/login/{role}")]
-// async fn login(
-//     auth_authority: Data<Authority<Role, Ed25519, _, _>>,
-//     role: web::Path<Role>,
-// ) -> Result<HttpResponse, AuthError> {
-//     let cookie = auth_authority.create_signed_cookie(role.into_inner())?;
-
-//     Ok(HttpResponse::Accepted()
-//         .cookie(cookie)
-//         .body("You are now logged in"))
-// }
