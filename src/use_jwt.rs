@@ -56,7 +56,7 @@ macro_rules! impl_use_jwt {
                     InitError = (),
                 >
             > {
-                self.wrap(AuthService::new(authority.clone(), || async move { true }))
+                self.wrap(AuthService::new(authority.clone()))
             }
         }
     }
@@ -65,4 +65,3 @@ macro_rules! impl_use_jwt {
 impl_use_jwt!(Scope);
 impl_use_jwt!(Resource);
 impl_use_jwt!(App, T);
-
