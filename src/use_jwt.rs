@@ -56,7 +56,11 @@ macro_rules! impl_use_jwt {
                     InitError = (),
                 >
             > {
-                self.wrap(AuthService::new(authority.clone()))
+                if let Some(cookie_signer) = authority.cookie_signer() {
+                    self.app_data(cookie_signer)
+                } else {
+                    self
+                }.wrap(AuthService::new(authority.clone()))
             }
         }
     }
