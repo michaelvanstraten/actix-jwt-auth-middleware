@@ -3,11 +3,16 @@ use jwt_compact::{CreationError, ParseError, ValidationError};
 
 pub type AuthResult<T> = Result<T, AuthError>;
 
-/// if #[cfg(debug_assertions)] is true the wrapped errors (TokenCreation, TokenValidation, TokenParse) are in included in the error message
+/**
+    Crate wide error type
+
+    if #[cfg(debug_assertions)] is true the wrapped errors in (TokenCreation, TokenValidation, TokenParse, Internal) are in included in the error message.
+*/
+
 #[derive(Debug)]
 pub enum AuthError {
-    /// returned if the guard function returns false
     Unauthorized,
+    NoCookieSigner,
     TokenCreation(CreationError),
     TokenValidation(ValidationError),
     TokenParse(ParseError),
@@ -37,31 +42,33 @@ impl std::fmt::Display for AuthError {
         #[cfg(not(debug_assertions))]
         {
             f.write_str(&match self {
-                AuthError::Unauthorized => "you are not authorized to interact with this scope",
-                AuthError::TokenCreation(_) => "there was an internal error creating your token",
-                AuthError::TokenValidation(_) => "it seems your token could not be verified",
-                AuthError::TokenParse(_) => "it seems there has been an error parsing your token",
-                AuthError::Internal(_) => "there has been an internal error",
+                AuthError::Unauthorized => "You are not authorized to interact with this scope",
+                AuthError::TokenValidation(_) => "It seems your token could not be verified",
+                AuthError::TokenParse(_) => "It seems there has been an error parsing your token",
+                AuthError::Internal(_)
+                | AuthError::NoCookieSigner
+                | AuthError::TokenCreation(_) => "There has been an internal error.",
             })
         }
 
         #[cfg(debug_assertions)]
         match self {
             AuthError::Unauthorized => {
-                f.write_str("you are not authorized to interact with this scope")
+                f.write_str("You are not authorized to interact with this Scope")
             }
             AuthError::TokenCreation(err) => f.write_fmt(format_args!(
-                "there was an internal error creating your token.\n\t Error: \"{err}\""
+                "There was an internal error creating your token.\n\t Error: \"{err}\""
             )),
             AuthError::TokenValidation(err) => f.write_fmt(format_args!(
-                "it seems your token could not be verified.\n\t Error: \"{err}\""
+                "It seems your token could not be verified.\n\t Error: \"{err}\""
             )),
             AuthError::TokenParse(err) => f.write_fmt(format_args!(
-                "it seems there has been an error parsing your token.\n\t Error: \"{err}\""
+                "It seems there has been an error parsing your token.\n\t Error: \"{err}\""
             )),
             AuthError::Internal(err) => f.write_fmt(format_args!(
-                "there has been a internal error relating to actix web. \n\t Error \"{err}\""
-            ))
+                "There has been a internal error relating to actix web. \n\t Error \"{err}\""
+            )),
+            AuthError::NoCookieSigner => f.write_str("It appears that no new token could be created because no cookie signer was configured. Please configure a CookieSigner."),
         }
     }
 }
@@ -69,9 +76,10 @@ impl std::fmt::Display for AuthError {
 impl ResponseError for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AuthError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AuthError::TokenCreation(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::Unauthorized | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
             AuthError::Internal(err) => err.as_response_error().status_code(),
         }

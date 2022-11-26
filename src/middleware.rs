@@ -9,6 +9,7 @@ use futures_util::future::{FutureExt as _, LocalBoxFuture};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
+#[doc(hidden)]
 pub struct AuthenticationMiddleware<S, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>
 where
     Algorithm: jwt_compact::Algorithm,

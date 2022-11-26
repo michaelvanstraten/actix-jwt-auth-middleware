@@ -1,12 +1,23 @@
 /*!
-This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework.
+This crate builds upon the [`jwt-compact`](https://github.com/slowli/jwt-compact) crate
+to provide a jwt authentication middleware for the [`actix-web`](https://github.com/actix/actix-web) framework.
 
-For the moment it uses Curve25519 implemented in the [ed25519_dalek](ed25519_dalek) crate for the signing process of the token but i will be working on a generalization soon.
+The jwt implementation supports the revocation for tokens via `auth` and `refresh` tokens.
 
-## Features
+It provides multiple cryptographic signing and verifying algorithms such as `HS256`, `HS384`, `HS512`, `EdDSA` and `ES256`.
+For more infos on that mater please refer to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the [`jwt-compact`](https://github.com/slowli/jwt-compact) crate.
 
-Automatic insertion and extraction of claims into the [Extensions](http::Extensions) object on the request.
-For this your type has to implement the [FromRequest](actix_web::FromRequest) trait or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
+# Features
+- easy use of custom jwt claims
+- automatic extractor of the custom claims
+- verify only mode (only `public key` required)
+- automatic renewal of `auth` token (customizable)
+- easy way to set expiration time of `auth` and `refresh` tokens
+- simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental feature)
+- refresh authorizer function that has access to application state
+
+I tightly integrates into the actix-web ecosystem,
+this makes it easy to Automatic extract the jwt claims from a valid token.
 
 ```rust
 #[derive(Serialize, Deserialize, Clone, FromRequest)]
@@ -14,120 +25,77 @@ struct UserClaims {
     id: u32,
     role: Role,
 }
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 enum Role {
     Admin,
-    BaseUser,
+    RegularUser,
 }
-
 #[get("/hello")]
 async fn hello(user_claims: UserClaims) -> impl Responder {
-    format!("Hello user with id: {}!", user_claims.id)
+    format!(
+        "Hello user with id: {}, i see you are a {:?}!",
+            user_claims.id, user_claims.role
+    )
 }
 ```
 
-Guard functions on top of JWT authentication.
+For this your custom claim type has to implement the [`FromRequest`](actix_web::FromRequest) trait
+or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
-Your guard function has to implement the [Handler](actix_web::Handler) trait and return a type that is partially equatable to a boolean.
-Luckily the Handler trait is implemented for functions (up to an arity of 12) by actix_web.
-
-The Application State can also be accessed with the guard function, for this use the [web::Data<T>](actix_web::web::Data<T>) extractor where T is the type of the state.
+# Simple Example
 
 ```rust
-async fn verify_service_request(user_claims: UserClaims) -> bool {
-    match user_claims.role {
-        Role::Admin => true,
-        Role::BaseUser => false,
-    }
-}
-```
-
-## Example
-
-```rust
-use actix_jwt_auth_middleware::{AuthError, AuthService, Authority, FromRequest};
-use actix_web::{
-    get,
-    web::{self, Data},
-    App, HttpResponse, HttpServer, Responder,
-};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, FromRequest)]
-struct UserClaims {
+#[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
+struct User {
     id: u32,
-    role: Role,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-enum Role {
-    Admin,
-    BaseUser,
-}
-
-async fn verify_service_request(user_claims: UserClaims) -> bool {
-    match user_claims.role {
-        Role::Admin => true,
-        Role::BaseUser => false,
-    }
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    // we initialize a new Authority passing the underling type the JWT token should destructure into.
-    let auth_authority = Authority::<UserClaims>::default();
-    HttpServer::new(move || {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let key_pair = KeyPair::random();
+
+    let cookie_signer = CookieSigner::new()
+        .signing_key(key_pair.secret_key().clone())
+        .algorithm(Ed25519)
+        .build()?;
+
+    let authority = Authority::<User, _, _, _>::new()
+        .re_authorizer(|| async move { Ok(()) })
+        .cookie_signer(Some(cookie_signer.clone()))
+        .verifying_key(key_pair.public_key().clone())
+        .build()?;
+
+    Ok(HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(auth_authority.clone()))
             .service(login)
-            .service(login_as_base_user)
-            // in order to wrap the entire app scope excluding the login handlers we have add a new service
-            // with an empty scope first
-            .service(web::scope("").service(hello).wrap(AuthService::new(
-                auth_authority.clone(),
-                // we pass the guard function to use with this auth service
-                verify_service_request,
-            )))
+            .app_data(Data::new(cookie_signer.clone()))
+            .service(
+                web::scope("")
+                    .service(hello)
+                    .use_jwt(authority.clone())
+            )
     })
-    .bind(("127.0.0.1", 42069))?
+    .bind(("127.0.0.1", 8080))?
     .run()
-    .await
+    .await?)
+}
+
+#[get("/login")]
+async fn login(cookie_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
+    let user = User { id: 1 };
+    Ok(HttpResponse::Ok()
+        .cookie(cookie_signer.create_access_token_cookie(&user)?)
+        .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
+        .body("You are now logged in"))
 }
 
 #[get("/hello")]
-async fn hello(user_claims: UserClaims) -> impl Responder {
-    format!("Hello user with id: {}!", user_claims.id)
-}
-
-// calling this route will give you access to the rest of the apps scopes
-#[get("/login")]
-async fn login(auth_authority: Data<Authority<UserClaims>>) -> Result<HttpResponse, AuthError> {
-    let cookie = auth_authority.create_signed_cookie(UserClaims {
-        id: 69,
-        role: Role::Admin,
-    })?;
-
-    Ok(HttpResponse::Accepted()
-        .cookie(cookie)
-        .body("You are now logged in"))
-}
-
-// calling this route will not give you access to the rest of the apps scopes because you are not an admin
-#[get("/login-as-base-user")]
-async fn login_as_base_user(
-    auth_authority: Data<Authority<UserClaims>>,
-) -> Result<HttpResponse, AuthError> {
-    let cookie = auth_authority.create_signed_cookie(UserClaims {
-        id: 69,
-        role: Role::BaseUser,
-    })?;
-
-    Ok(HttpResponse::Accepted()
-        .cookie(cookie)
-        .body("You are now logged in"))
+async fn hello(user: User) -> impl Responder {
+    format!("Hello there, i see your user id is {}.", user.id)
 }
 ```
+
+For more example please referee to the `examples` directory.
 */
 
 #![allow(incomplete_features)]
@@ -137,12 +105,6 @@ async fn login_as_base_user(
 )]
 #[cfg(feature = "use_jwt_traits")]
 mod use_jwt;
-#[cfg(feature = "use_jwt_traits")]
-pub use use_jwt::{
-    App as UseJWTOnApp,
-    Scope as UseJWTOnScope,
-    Resource as UseJWTOnResource
-};
 
 mod authority;
 mod cookie_signer;
@@ -156,5 +118,8 @@ pub use actix_jwt_auth_middleware_derive::FromRequest;
 pub use authority::*;
 pub use cookie_signer::*;
 pub use errors::*;
-use middleware::*;
+pub use middleware::*;
 pub use service::*;
+
+#[cfg(feature = "use_jwt_traits")]
+pub use use_jwt::{App as UseJWTOnApp, Resource as UseJWTOnResource, Scope as UseJWTOnScope};

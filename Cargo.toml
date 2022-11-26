@@ -1,6 +1,6 @@
 [package]
 name = "actix-jwt-auth-middleware"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Michael van Straten"]
 repository = "https://github.com/michaelvanstraten/actix-jwt-auth-middleware"
@@ -9,16 +9,22 @@ keywords = ["web", "futures", "utility", "actix-web", "error-handling"]
 categories = ["Authentication", "Cryptography"]
 readme = "readme.md"
 description = "This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework."
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [features]
 use_jwt_traits = []
 
 [dependencies]
 serde = "1.0.145"
-actix-web = { version = "4.2.1", default-features = false, features = ["cookies"]}
+actix-web = { version = "4.2.1", default-features = false, features = [
+    "cookies",
+] }
 derive_builder = "0.11.2"
-jwt-compact = { version = "0.5.0", default-features = false, features = ["std", "clock", "exonum-crypto"] } 
+jwt-compact = { version = "0.5.0", default-features = false, features = [
+    "std",
+    "clock",
+    "exonum-crypto",
+] }
 actix-jwt-auth-middleware-derive = "^0.1"
 futures-util = "0.3.21"
 chrono = "0.4.22"
@@ -31,3 +37,4 @@ default-features = true
 
 [dev-dependencies.serde]
 features = ["derive"]
+

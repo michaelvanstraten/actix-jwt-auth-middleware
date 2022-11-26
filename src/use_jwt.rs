@@ -1,4 +1,4 @@
-use crate::{AuthService, Authority};
+use crate::{AuthenticationService, Authority};
 
 use actix_web::{
     body::BoxBody,
@@ -56,11 +56,12 @@ macro_rules! impl_use_jwt {
                     InitError = (),
                 >
             > {
-                if let Some(cookie_signer) = authority.cookie_signer() {
-                    self.app_data(cookie_signer)
-                } else {
-                    self
-                }.wrap(AuthService::new(authority.clone()))
+                self.wrap(AuthenticationService::new(authority.clone()))
+                // if let Some(cookie_signer) = authority.cookie_signer() {
+                //     self.app_data(actix_web::web::Data::new(cookie_signer))
+                // } else {
+                //     self
+                // }.wrap(AuthenticationService::new(authority.clone()))
             }
         }
     }

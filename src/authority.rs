@@ -4,7 +4,9 @@ use crate::{AuthError, AuthResult, CookieSigner};
 
 use actix_web::{cookie::Cookie, dev::ServiceRequest, FromRequest, Handler, HttpMessage};
 use derive_builder::Builder;
-use jwt_compact::{AlgorithmExt, Token, UntrustedToken, ValidationError::Expired as TokenExpired};
+use jwt_compact::{
+    AlgorithmExt, TimeOptions, Token, UntrustedToken, ValidationError::Expired as TokenExpired,
+};
 use serde::{de::DeserializeOwned, Serialize};
 
 macro_rules! pull_from_cookie_signer {
@@ -29,11 +31,19 @@ macro_rules! pull_from_cookie_signer {
     };
 }
 
+#[doc(hidden)]
+// struct used to signal to the middleware that a cookie needs to be updated
+// after the wrapped service has returned a response. 
 pub struct TokenUpdate {
     pub(crate) auth_cookie: Option<Cookie<'static>>,
     pub(crate) refresh_cookie: Option<Cookie<'static>>,
 }
 
+/**
+    Handles the authorization of requests for the middleware as well as refreshing the `auth`/`re_auth` token.
+
+    Please referee to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
+*/
 #[derive(Builder, Clone)]
 pub struct Authority<Claims, Algorithm, ReAuthorizer, Args>
 where
@@ -41,19 +51,75 @@ where
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
 {
-    /// A function that will decide over wether a client with a valid refresh token gets a new access token. This function implements a method of revoking of a jwt token. Similar to the [AuthService<Guard>](actix_jwt_auth_middleware::AuthService) this function will get access to the.
+    /**
+        The re_authorizer is called every time,
+        when a client with an expired access token but a valid refresh token
+        tries to fetch a resource protected by the jwt middleware.
+
+        By returning the `Ok` variant your grand the client permission to get a new access token.
+        In contrast, by returning the `Err` variant you deny the request. The [`actix_web::Error`](actix_web::Error) returned in this case
+        will be passed along as a wrapped internal [`AuthError`] back to the client (There are options to remap this [actix-error-mapper]).
+
+        Since re_authorizer has to implement the [`Handler`](actix_web::dev::Handler) trait,
+        you are able to access your regular application an request state from within
+        the function. This allows you to perform Database Check etc...
+    */
     re_authorizer: ReAuthorizer,
+    /**
+       Not Passing a CookieSinger struct will make your middleware unable to refresh the access token automatically.
+
+       You will have to provide a algorithm manually in this case because the Authority can not pull it from the `cookie_signer` field.
+
+       Please referee to the structs own documentation for more details.
+    */
     #[builder(default = "None")]
     cookie_signer: Option<CookieSigner<Claims, Algorithm>>,
+    /**
+        Depending on wether a CookieSinger is set, setting this field will have no affect.
+
+        Defaults to the value of the `access_token_name` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        this defaults to `"access_token"`.
+    */
     #[builder(default = "pull_from_cookie_signer!(self, access_token_name, \"access_token\")")]
     pub(crate) access_token_name: &'static str,
+    /**
+        Self explanatory, if set to false the clients access token will not be automatically refreshed.
+
+        Defaults to `true`
+    */
     #[builder(default = "true")]
     renew_access_token_automatically: bool,
+    /**
+        If set to true the clients refresh token will automatically refreshed,
+        this allows clients to basically stay authenticated over a infinite amount of time, so i don't recommend it.
+
+        Defaults to `false`
+    */
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
+    /**
+        Key used to verify integrity of access and refresh token.
+    */
     verifying_key: Algorithm::VerifyingKey,
+    /**
+        The Cryptographic signing algorithm used in the process of creation of access and refresh tokens.
+
+        Please referee to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the `jwt-compact` crate
+        for a comprehensive list of the supported algorithms.
+
+        Defaults to the value of the `algorithm` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        this field needs to be set.
+    */
     #[builder(default = "pull_from_cookie_signer!(self, algorithm)")]
     algorithm: Algorithm,
+    /**
+        Used in the creating of the `token`, the current timestamp is taken from this, but please referee to the Structs documentation.  
+
+        Defaults to the value of the `time_options` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        this field needs to be set.
+    */
+    #[builder(default = "pull_from_cookie_signer!(self, time_options)")]
+    time_options: TimeOptions,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
     _claims: PhantomData<Claims>,
@@ -71,14 +137,25 @@ where
     ReAuthorizer: Handler<Args, Output = Result<(), actix_web::Error>> + Clone,
     Args: FromRequest + Clone,
 {
+    /**
+        Returns a new [AuthorityBuilder]
+    */
     pub fn new() -> AuthorityBuilder<Claims, Algorithm, ReAuthorizer, Args> {
         AuthorityBuilder::default()
     }
 
+    /**
+        Returns a Clone of the `cookie_signer` field on the Authority.
+    */
     pub fn cookie_signer(&self) -> Option<CookieSigner<Claims, Algorithm>> {
         self.cookie_signer.clone()
     }
 
+    /**
+        Use by the [`crate::AuthenticationMiddleware`]
+        in oder to verify an incoming request and ether hand it of to protected services
+        or deny the request by return a wrapped [`AuthError`].
+    */
     pub async fn verify_service_request(
         &self,
         mut req: ServiceRequest,
@@ -106,7 +183,10 @@ where
                                         Ok((
                                             req,
                                             Some(TokenUpdate {
-                                                auth_cookie: None,
+                                                auth_cookie: Some(
+                                                    cookie_signer
+                                                        .create_access_token_cookie(&claims)?,
+                                                ),
                                                 refresh_cookie: None,
                                             }),
                                         ))
@@ -137,7 +217,7 @@ where
                             Err(err) => Err(AuthError::Internal(err.into())),
                         }
                     }
-                    None => todo!(),
+                    None => Err(AuthError::NoCookieSigner),
                 }
             }
             Err(e) => Err(e),
@@ -152,7 +232,12 @@ where
                         .algorithm
                         .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
                     {
-                        Ok(token) => Ok(token),
+                        Ok(token) => {
+                            match token.claims().validate_expiration(&self.time_options) {
+                                Ok(_) => Ok(token),
+                                Err(err) => Err(AuthError::TokenValidation(err)),
+                            }
+                        }
                         Err(err) => Err(err.into()),
                     }
                 }
@@ -169,5 +254,43 @@ where
             .deserialize_claims_unchecked::<Claims>()
             .unwrap()
             .custom
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Authority;
+    use actix_web::cookie::Cookie;
+    use chrono::Duration;
+    use exonum_crypto::KeyPair;
+    use jwt_compact::{alg::Ed25519, AlgorithmExt, Claims, Header, TimeOptions};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+    struct TestClaims {}
+
+    #[test]
+    fn valid_token() {
+        let key_pair = KeyPair::random();
+
+        let time_options = TimeOptions::from_leeway(Duration::min_value());
+        let header = Header::default();
+        let claims = Claims::new(TestClaims {});
+
+        let authority = Authority::<TestClaims, _, _, _>::new()
+            .algorithm(Ed25519)
+            .verifying_key(key_pair.public_key())
+            .re_authorizer(|| async { Ok(()) })
+            .time_options(time_options.clone())
+            .build()
+            .unwrap();
+
+        let token = Ed25519
+            .token(header, &claims, key_pair.secret_key())
+            .unwrap();
+
+        let cookie = Cookie::build(authority.access_token_name, token).finish();
+
+        authority.verify_cookie(Some(cookie)).unwrap();
     }
 }
