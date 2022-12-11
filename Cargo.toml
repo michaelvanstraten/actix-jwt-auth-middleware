@@ -20,7 +20,7 @@ actix-web = { version = "4.2.1", default-features = false, features = [
     "cookies",
 ] }
 derive_builder = "0.11.2"
-jwt-compact = { version = "0.5.0", default-features = false, features = [
+jwt-compact = { version = "0.6.0", default-features = false, features = [
     "std",
     "clock",
     "exonum-crypto",
@@ -31,6 +31,7 @@ chrono = "0.4.22"
 
 [dev-dependencies]
 exonum-crypto = "1.0.0"
+lazy_static = "1.4.0"
 
 [dev-dependencies.actix-web]
 default-features = true

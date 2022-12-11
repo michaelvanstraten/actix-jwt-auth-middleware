@@ -112,40 +112,40 @@ where
     Claims: Serialize + Clone,
 {
     /**
-    Returns a new [CookieSignerBuilder]
+        Returns a new [CookieSignerBuilder]
     */
     pub fn new() -> CookieSignerBuilder<Claims, Algorithm> {
         CookieSignerBuilder::default()
     }
 
     /**
-    A shorthand for creating a access token.
+        A shorthand for creating a access token.
 
-    Internally it calls [`Self::create_signed_cookie`] while
-    passing the `access_token_name` as well as the `access_token_lifetime`.
+        Internally it calls [`Self::create_signed_cookie`] while
+        passing the `access_token_name` as well as the `access_token_lifetime`.
     */
     pub fn create_access_token_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
         self.create_signed_cookie(claims, self.access_token_name, self.access_token_lifetime)
     }
 
     /**
-    A shorthand for creating a refresh token.
+        A shorthand for creating a refresh token.
 
-    Internally it calls [`Self::create_signed_cookie`] while
-    passing the `refresh_token_name` as well as the `refresh_token_lifetime`.
+        Internally it calls [`Self::create_signed_cookie`] while
+        passing the `refresh_token_name` as well as the `refresh_token_lifetime`.
     */
     pub fn create_refresh_token_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
         self.create_signed_cookie(claims, self.refresh_token_name, self.refresh_token_lifetime)
     }
 
     /**
-    Creates a cookie containing a jwt token.
+        Creates a cookie containing a jwt token.
 
-    * `claims` reference to an object of the generic type `Claims` which will be incorporated inside of the jwt string
+        * `claims` reference to an object of the generic type `Claims` which will be incorporated inside of the jwt string
 
-    * `token_name` the name of the resulting cookie
+        * `token_name` the name of the resulting cookie
 
-    * `token_lifetime` how long the token is valid for
+        * `token_lifetime` how long the token is valid for
     */
     pub fn create_signed_cookie(
         &self,

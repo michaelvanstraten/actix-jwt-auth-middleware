@@ -45,6 +45,7 @@ or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequ
 # Simple Example
 
 ```rust
+
 #[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
 struct User {
     id: u32,

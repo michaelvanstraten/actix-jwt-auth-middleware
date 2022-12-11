@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let authority = Authority::<User, _, _, _>::new()
-        .re_authorizer(|| async move { Ok(()) })
+        .refresh_authorizer(|| async move { Ok(()) })
         .cookie_signer(Some(cookie_signer.clone()))
         .verifying_key(key_pair.public_key().clone())
         .build()?;

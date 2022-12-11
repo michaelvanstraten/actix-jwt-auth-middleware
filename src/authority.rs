@@ -33,7 +33,8 @@ macro_rules! pull_from_cookie_signer {
 
 #[doc(hidden)]
 // struct used to signal to the middleware that a cookie needs to be updated
-// after the wrapped service has returned a response. 
+// after the wrapped service has returned a response.
+#[derive(Debug)]
 pub struct TokenUpdate {
     pub(crate) auth_cookie: Option<Cookie<'static>>,
     pub(crate) refresh_cookie: Option<Cookie<'static>>,
@@ -52,7 +53,7 @@ where
     Algorithm::VerifyingKey: Clone,
 {
     /**
-        The re_authorizer is called every time,
+        The `refresh_authorizer` is called every time,
         when a client with an expired access token but a valid refresh token
         tries to fetch a resource protected by the jwt middleware.
 
@@ -60,13 +61,13 @@ where
         In contrast, by returning the `Err` variant you deny the request. The [`actix_web::Error`](actix_web::Error) returned in this case
         will be passed along as a wrapped internal [`AuthError`] back to the client (There are options to remap this [actix-error-mapper]).
 
-        Since re_authorizer has to implement the [`Handler`](actix_web::dev::Handler) trait,
+        Since `refresh_authorizer` has to implement the [`Handler`](actix_web::dev::Handler) trait,
         you are able to access your regular application an request state from within
         the function. This allows you to perform Database Check etc...
     */
-    re_authorizer: ReAuthorizer,
+    refresh_authorizer: ReAuthorizer,
     /**
-       Not Passing a CookieSinger struct will make your middleware unable to refresh the access token automatically.
+       Not Passing a [`CookieSigner`] struct will make your middleware unable to refresh the access token automatically.
 
        You will have to provide a algorithm manually in this case because the Authority can not pull it from the `cookie_signer` field.
 
@@ -75,7 +76,7 @@ where
     #[builder(default = "None")]
     cookie_signer: Option<CookieSigner<Claims, Algorithm>>,
     /**
-        Depending on wether a CookieSinger is set, setting this field will have no affect.
+        Depending on wether a [`CookieSigner`] is set, setting this field will have no affect.
 
         Defaults to the value of the `access_token_name` field set on the `cookie_signer`, if the `cookie_signer` is not set,
         this defaults to `"access_token"`.
@@ -89,6 +90,14 @@ where
     */
     #[builder(default = "true")]
     renew_access_token_automatically: bool,
+    /**
+        Depending on wether a [`CookieSigner`] is set, setting this field will have no affect.
+
+        Defaults to the value of the `refresh_token_name` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        this defaults to `"refresh_token"`.
+    */
+    #[builder(default = "pull_from_cookie_signer!(self, refresh_token_name, \"refresh_token\")")]
+    pub(crate) refresh_token_name: &'static str,
     /**
         If set to true the clients refresh token will automatically refreshed,
         this allows clients to basically stay authenticated over a infinite amount of time, so i don't recommend it.
@@ -113,7 +122,7 @@ where
     #[builder(default = "pull_from_cookie_signer!(self, algorithm)")]
     algorithm: Algorithm,
     /**
-        Used in the creating of the `token`, the current timestamp is taken from this, but please referee to the Structs documentation.  
+        Used in the creating of the `token`, the current timestamp is taken from this, but please referee to the Structs documentation.
 
         Defaults to the value of the `time_options` field set on the `cookie_signer`, if the `cookie_signer` is not set,
         this field needs to be set.
@@ -160,71 +169,65 @@ where
         &self,
         mut req: ServiceRequest,
     ) -> AuthResult<(ServiceRequest, Option<TokenUpdate>)> {
-        match self.verify_cookie(req.cookie(self.access_token_name)) {
+        match self.validate_cookie(req.cookie(self.access_token_name)) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
                 Ok((req, None))
             }
-            Err(AuthError::TokenValidation(TokenExpired))
+            Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoCookie)
                 if self.renew_access_token_automatically =>
             {
-                match self.cookie_signer {
-                    Some(ref cookie_signer) => {
-                        let (mut_req, mut payload) = req.parts_mut();
-                        match Args::from_request(&mut_req, &mut payload).await {
-                            Ok(args) => match self.re_authorizer.call(args).await {
-                                Ok(()) => match self
-                                    .verify_cookie(req.cookie(cookie_signer.refresh_token_name))
-                                {
-                                    Ok(refresh_token) => {
-                                        let claims = refresh_token.claims().custom.clone();
-                                        req.extensions_mut().insert(claims.clone());
-                                        Ok((
-                                            req,
-                                            Some(TokenUpdate {
-                                                auth_cookie: Some(
-                                                    cookie_signer
-                                                        .create_access_token_cookie(&claims)?,
-                                                ),
-                                                refresh_cookie: None,
-                                            }),
-                                        ))
-                                    }
-                                    Err(AuthError::TokenValidation(TokenExpired))
-                                        if self.renew_refresh_token_automatically =>
-                                    {
-                                        let claims = self
-                                            .extract_untrusted_claims_from_service_request(&req);
-                                        Ok((
-                                            req,
-                                            Some(TokenUpdate {
-                                                auth_cookie: Some(
-                                                    cookie_signer
-                                                        .create_access_token_cookie(&claims)?,
-                                                ),
-                                                refresh_cookie: Some(
-                                                    cookie_signer
-                                                        .create_refresh_token_cookie(&claims)?,
-                                                ),
-                                            }),
-                                        ))
-                                    }
-                                    Err(e) => Err(e),
-                                },
-                                Err(e) => Err(AuthError::Internal(e)),
-                            },
-                            Err(err) => Err(AuthError::Internal(err.into())),
-                        }
+                self.call_refresh_authorizer(&mut req).await?;
+                match (
+                    self.validate_cookie(req.cookie(self.refresh_token_name)),
+                    &self.cookie_signer,
+                ) {
+                    (Ok(refresh_token), Some(cookie_signer)) => {
+                        let claims = refresh_token.claims().custom.clone();
+                        req.extensions_mut().insert(claims.clone());
+                        Ok((
+                            req,
+                            Some(TokenUpdate {
+                                auth_cookie: Some(
+                                    cookie_signer.create_access_token_cookie(&claims)?,
+                                ),
+                                refresh_cookie: None,
+                            }),
+                        ))
                     }
-                    None => Err(AuthError::NoCookieSigner),
+                    (Err(AuthError::TokenValidation(TokenExpired)), Some(cookie_signer))
+                        if self.renew_refresh_token_automatically =>
+                    {
+                        let claims = UntrustedToken::new(
+                            req.cookie(self.refresh_token_name).unwrap().value(),
+                        )
+                        .unwrap()
+                        .deserialize_claims_unchecked::<Claims>()
+                        .unwrap()
+                        .custom;
+                        req.extensions_mut().insert(claims.clone());
+                        Ok((
+                            req,
+                            Some(TokenUpdate {
+                                auth_cookie: Some(
+                                    cookie_signer.create_access_token_cookie(&claims)?,
+                                ),
+                                refresh_cookie: Some(
+                                    cookie_signer.create_refresh_token_cookie(&claims)?,
+                                ),
+                            }),
+                        ))
+                    }
+                    (Ok(_), None) => Err(AuthError::NoCookieSigner),
+                    (Err(err), _) => Err(err),
                 }
             }
-            Err(e) => Err(e),
+            Err(err) => Err(err),
         }
     }
 
-    fn verify_cookie(&self, cookie: Option<Cookie>) -> AuthResult<Token<Claims>> {
+    fn validate_cookie(&self, cookie: Option<Cookie>) -> AuthResult<Token<Claims>> {
         if let Some(token_cookie) = cookie {
             match UntrustedToken::new(token_cookie.value()) {
                 Ok(untrusted_token) => {
@@ -232,65 +235,29 @@ where
                         .algorithm
                         .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
                     {
-                        Ok(token) => {
-                            match token.claims().validate_expiration(&self.time_options) {
-                                Ok(_) => Ok(token),
-                                Err(err) => Err(AuthError::TokenValidation(err)),
-                            }
-                        }
+                        Ok(token) => match token.claims().validate_expiration(&self.time_options) {
+                            Ok(_) => Ok(token),
+                            Err(err) => Err(AuthError::TokenValidation(err)),
+                        },
                         Err(err) => Err(err.into()),
                     }
                 }
                 Err(err) => Err(err.into()),
             }
         } else {
-            Err(AuthError::Unauthorized)
+            Err(AuthError::NoCookie)
         }
     }
 
-    fn extract_untrusted_claims_from_service_request(&self, req: &ServiceRequest) -> Claims {
-        UntrustedToken::new(req.cookie(self.access_token_name).unwrap().value())
-            .unwrap()
-            .deserialize_claims_unchecked::<Claims>()
-            .unwrap()
-            .custom
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Authority;
-    use actix_web::cookie::Cookie;
-    use chrono::Duration;
-    use exonum_crypto::KeyPair;
-    use jwt_compact::{alg::Ed25519, AlgorithmExt, Claims, Header, TimeOptions};
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-    struct TestClaims {}
-
-    #[test]
-    fn valid_token() {
-        let key_pair = KeyPair::random();
-
-        let time_options = TimeOptions::from_leeway(Duration::min_value());
-        let header = Header::default();
-        let claims = Claims::new(TestClaims {});
-
-        let authority = Authority::<TestClaims, _, _, _>::new()
-            .algorithm(Ed25519)
-            .verifying_key(key_pair.public_key())
-            .re_authorizer(|| async { Ok(()) })
-            .time_options(time_options.clone())
-            .build()
-            .unwrap();
-
-        let token = Ed25519
-            .token(header, &claims, key_pair.secret_key())
-            .unwrap();
-
-        let cookie = Cookie::build(authority.access_token_name, token).finish();
-
-        authority.verify_cookie(Some(cookie)).unwrap();
+    async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
+        let (mut_req, mut payload) = req.parts_mut();
+        match Args::from_request(&mut_req, &mut payload).await {
+            Ok(args) => self
+                .refresh_authorizer
+                .call(args)
+                .await
+                .map_err(|err| AuthError::RefreshAuthorizerDenied(err)),
+            Err(err) => Err(AuthError::Internal(err.into())),
+        }
     }
 }

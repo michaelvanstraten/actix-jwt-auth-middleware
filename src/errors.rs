@@ -11,12 +11,25 @@ pub type AuthResult<T> = Result<T, AuthError>;
 
 #[derive(Debug)]
 pub enum AuthError {
-    Unauthorized,
+    NoCookie,
+    RefreshAuthorizerDenied(actix_web::Error),
     NoCookieSigner,
     TokenCreation(CreationError),
     TokenValidation(ValidationError),
     TokenParse(ParseError),
     Internal(actix_web::Error),
+}
+
+impl PartialEq for AuthError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::TokenCreation(_), Self::TokenCreation(_))
+            | (Self::TokenValidation(_), Self::TokenValidation(_))
+            | (Self::TokenParse(_), Self::TokenParse(_))
+            | (Self::Internal(_), Self::Internal(_)) => true,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }
 
 impl Into<AuthError> for CreationError {
@@ -39,10 +52,12 @@ impl Into<AuthError> for ValidationError {
 
 impl std::fmt::Display for AuthError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const NO_COOKIE_MESSAGE: &str = "";
+
         #[cfg(not(debug_assertions))]
         {
             f.write_str(&match self {
-                AuthError::Unauthorized => "You are not authorized to interact with this scope",
+                AuthError::NoCookie => NO_COOKIE_MESSAGE,
                 AuthError::TokenValidation(_) => "It seems your token could not be verified",
                 AuthError::TokenParse(_) => "It seems there has been an error parsing your token",
                 AuthError::Internal(_)
@@ -53,8 +68,8 @@ impl std::fmt::Display for AuthError {
 
         #[cfg(debug_assertions)]
         match self {
-            AuthError::Unauthorized => {
-                f.write_str("You are not authorized to interact with this Scope")
+            AuthError::NoCookie => {
+                f.write_str(NO_COOKIE_MESSAGE)
             }
             AuthError::TokenCreation(err) => f.write_fmt(format_args!(
                 "There was an internal error creating your token.\n\t Error: \"{err}\""
@@ -69,6 +84,7 @@ impl std::fmt::Display for AuthError {
                 "There has been a internal error relating to actix web. \n\t Error \"{err}\""
             )),
             AuthError::NoCookieSigner => f.write_str("It appears that no new token could be created because no cookie signer was configured. Please configure a CookieSigner."),
+            AuthError::RefreshAuthorizerDenied(_) => todo!(),
         }
     }
 }
@@ -76,12 +92,10 @@ impl std::fmt::Display for AuthError {
 impl ResponseError for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AuthError::Unauthorized | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
-            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            AuthError::NoCookie | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => StatusCode::INTERNAL_SERVER_ERROR,
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
-            AuthError::Internal(err) => err.as_response_error().status_code(),
+            AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => err.as_response_error().status_code(),
         }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
