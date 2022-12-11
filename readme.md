@@ -97,6 +97,6 @@ async fn hello(user: User) -> impl Responder {
 }
 ```
 
-For more example please referee to the `examples` directory.
+For more examples please referee to the `examples` directory.
 
 License: MIT
