@@ -2,21 +2,21 @@
 This crate builds upon the [`jwt-compact`](https://github.com/slowli/jwt-compact) crate
 to provide a jwt authentication middleware for the [`actix-web`](https://github.com/actix/actix-web) framework.
 
-The jwt implementation supports the revocation for tokens via `auth` and `refresh` tokens.
+The jwt implementation supports the revocation for tokens via `access` and `refresh` tokens.
 
 It provides multiple cryptographic signing and verifying algorithms such as `HS256`, `HS384`, `HS512`, `EdDSA` and `ES256`.
 For more infos on that mater please refer to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the [`jwt-compact`](https://github.com/slowli/jwt-compact) crate.
 
 # Features
 - easy use of custom jwt claims
-- automatic extractor of the custom claims
+- automatic extraction of the custom claims
 - verify only mode (only `public key` required)
-- automatic renewal of `auth` token (customizable)
-- easy way to set expiration time of `auth` and `refresh` tokens
-- simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental feature)
+- automatic renewal of `access` token (customizable)
+- easy way to set expiration time of `access` and `refresh` tokens
+- simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
 - refresh authorizer function that has access to application state
 
-I tightly integrates into the actix-web ecosystem,
+It tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
 
 ```rust
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let authority = Authority::<User, _, _, _>::new()
-        .re_authorizer(|| async move { Ok(()) })
+        .refresh_authorizer(|| async move { Ok(()) })
         .cookie_signer(Some(cookie_signer.clone()))
         .verifying_key(key_pair.public_key().clone())
         .build()?;

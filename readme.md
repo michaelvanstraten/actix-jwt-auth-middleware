@@ -45,7 +45,7 @@ or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequ
 ```rust
     let key_pair = KeyPair::random();
     let authority = Authority::<Role, _, _, _>::new()
-        .re_authorizer(|| async move { Ok(()) })
+        .refresh_authorizer(|| async move { Ok(()) })
         .cookie_signer(Some(
             CookieSigner::new()
                 .signing_key(key_pair.secret_key().clone())

@@ -41,12 +41,12 @@ pub struct TokenUpdate {
 }
 
 /**
-    Handles the authorization of requests for the middleware as well as refreshing the `auth`/`re_auth` token.
+    Handles the authorization of requests for the middleware as well as refreshing the `access`/`refresh` token.
 
     Please referee to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
 */
 #[derive(Builder, Clone)]
-pub struct Authority<Claims, Algorithm, ReAuthorizer, Args>
+pub struct Authority<Claims, Algorithm, RefreshAuthorizer, Args>
 where
     Algorithm: jwt_compact::Algorithm,
     Algorithm::SigningKey: Clone,
@@ -65,7 +65,7 @@ where
         you are able to access your regular application an request state from within
         the function. This allows you to perform Database Check etc...
     */
-    refresh_authorizer: ReAuthorizer,
+    refresh_authorizer: RefreshAuthorizer,
     /**
        Not Passing a [`CookieSigner`] struct will make your middleware unable to refresh the access token automatically.
 
@@ -137,19 +137,19 @@ where
     _args: PhantomData<Args>,
 }
 
-impl<Claims, Algorithm, ReAuthorizer, Args> Authority<Claims, Algorithm, ReAuthorizer, Args>
+impl<Claims, Algorithm, RefreshAuthorizer, Args> Authority<Claims, Algorithm, RefreshAuthorizer, Args>
 where
     Claims: Serialize + DeserializeOwned + Clone + 'static,
     Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
-    ReAuthorizer: Handler<Args, Output = Result<(), actix_web::Error>> + Clone,
+    RefreshAuthorizer: Handler<Args, Output = Result<(), actix_web::Error>> + Clone,
     Args: FromRequest + Clone,
 {
     /**
         Returns a new [AuthorityBuilder]
     */
-    pub fn new() -> AuthorityBuilder<Claims, Algorithm, ReAuthorizer, Args> {
+    pub fn new() -> AuthorityBuilder<Claims, Algorithm, RefreshAuthorizer, Args> {
         AuthorityBuilder::default()
     }
 

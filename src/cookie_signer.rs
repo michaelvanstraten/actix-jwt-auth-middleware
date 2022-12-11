@@ -57,7 +57,7 @@ where
     /**
         This will control how long a access token is valid for.
 
-        Increasing this value will result in less calls to the `re_authorizer` function but it will also increase the time for a revocation of a token to take effect.
+        Increasing this value will result in less calls to the `refresh_authorizer` function but it will also increase the time for a revocation of a token to take effect.
 
         Defaults to `Duration::seconds(60)`
     */

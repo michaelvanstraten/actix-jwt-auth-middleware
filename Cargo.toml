@@ -38,4 +38,3 @@ default-features = true
 
 [dev-dependencies.serde]
 features = ["derive"]
-

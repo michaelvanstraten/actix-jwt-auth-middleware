@@ -6,18 +6,18 @@ pub type AuthResult<T> = Result<T, AuthError>;
 /**
     Crate wide error type
 
-    if #[cfg(debug_assertions)] is true the wrapped errors in (TokenCreation, TokenValidation, TokenParse, Internal) are in included in the error message.
+    if #[cfg(debug_assertions)] is true the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation) are in included in the error message.
 */
 
 #[derive(Debug)]
 pub enum AuthError {
-    NoCookie,
-    RefreshAuthorizerDenied(actix_web::Error),
-    NoCookieSigner,
-    TokenCreation(CreationError),
-    TokenValidation(ValidationError),
-    TokenParse(ParseError),
     Internal(actix_web::Error),
+    NoCookie,
+    NoCookieSigner,
+    RefreshAuthorizerDenied(actix_web::Error),
+    TokenCreation(CreationError),
+    TokenParse(ParseError),
+    TokenValidation(ValidationError),
 }
 
 impl PartialEq for AuthError {
@@ -52,39 +52,37 @@ impl Into<AuthError> for ValidationError {
 
 impl std::fmt::Display for AuthError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const NO_COOKIE_MESSAGE: &str = "";
+        const NO_COOKIE_MESSAGE: &str = "An error occurred, no cookie containing a jwt was found in the request. Please first authenticate with this application.";
 
         #[cfg(not(debug_assertions))]
-        {
-            f.write_str(&match self {
-                AuthError::NoCookie => NO_COOKIE_MESSAGE,
-                AuthError::TokenValidation(_) => "It seems your token could not be verified",
-                AuthError::TokenParse(_) => "It seems there has been an error parsing your token",
-                AuthError::Internal(_)
-                | AuthError::NoCookieSigner
-                | AuthError::TokenCreation(_) => "There has been an internal error.",
-            })
+        match self {
+            AuthError::NoCookie => f.write_str(NO_COOKIE_MESSAGE),
+            AuthError::RefreshAuthorizerDenied(err) => f.write_str(&err.to_string()),
+            AuthError::TokenParse(_) | AuthError::TokenValidation(_) => {
+                f.write_str("An error occurred, the provided jwt could not be processed.")
+            }
+            AuthError::Internal(_) | AuthError::NoCookieSigner | AuthError::TokenCreation(_) => {
+                f.write_str("An internal error occurred. Please try again later.")
+            }
         }
-
         #[cfg(debug_assertions)]
         match self {
-            AuthError::NoCookie => {
-                f.write_str(NO_COOKIE_MESSAGE)
-            }
+            AuthError::NoCookie => f.write_str(NO_COOKIE_MESSAGE),
+            AuthError::NoCookieSigner => f.write_str(
+                "An error occurred because no CookieSigner was configured on the Authority struct.",
+            ),
             AuthError::TokenCreation(err) => f.write_fmt(format_args!(
-                "There was an internal error creating your token.\n\t Error: \"{err}\""
+                "An error occurred creating the jwt.\n\t Error: \"{err}\""
             )),
             AuthError::TokenValidation(err) => f.write_fmt(format_args!(
-                "It seems your token could not be verified.\n\t Error: \"{err}\""
+                "An error occurred validating the jwt.\n\t Error: \"{err}\""
             )),
             AuthError::TokenParse(err) => f.write_fmt(format_args!(
-                "It seems there has been an error parsing your token.\n\t Error: \"{err}\""
+                "An error occurred parsing the jwt.\n\t Error: \"{err}\""
             )),
-            AuthError::Internal(err) => f.write_fmt(format_args!(
-                "There has been a internal error relating to actix web. \n\t Error \"{err}\""
-            )),
-            AuthError::NoCookieSigner => f.write_str("It appears that no new token could be created because no cookie signer was configured. Please configure a CookieSigner."),
-            AuthError::RefreshAuthorizerDenied(_) => todo!(),
+            AuthError::RefreshAuthorizerDenied(err) | AuthError::Internal(err) => {
+                f.write_str(&err.to_string())
+            }
         }
     }
 }
@@ -92,13 +90,22 @@ impl std::fmt::Display for AuthError {
 impl ResponseError for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AuthError::NoCookie | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
-            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
-            AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => err.as_response_error().status_code(),
+            AuthError::NoCookie | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => {
+                err.as_response_error().status_code()
+            }
         }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
-        HttpResponse::build(self.status_code()).body(self.to_string())
+        match self {
+            AuthError::RefreshAuthorizerDenied(err) | AuthError::Internal(err) => {
+                err.error_response()
+            }
+            _ => HttpResponse::build(self.status_code()).body(self.to_string()),
+        }
     }
 }

@@ -27,7 +27,7 @@ use std::{marker::PhantomData, rc::Rc, sync::Arc};
    let key_pair = KeyPair::random();
 
    let authority = Authority::<User, _, _, _>::new()
-       .re_authorizer(|| async move { Ok(()) })
+       .refresh_authorizer(|| async move { Ok(()) })
        .cookie_signer(Some(
            CookieSigner::new()
                .signing_key(key_pair.secret_key().clone())

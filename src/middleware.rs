@@ -10,19 +10,19 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 
 #[doc(hidden)]
-pub struct AuthenticationMiddleware<S, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>
+pub struct AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     Algorithm: jwt_compact::Algorithm,
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
 {
     pub service: Rc<S>,
-    pub inner: Arc<Authority<Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>>,
+    pub inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
     _claims: PhantomData<Claims>,
 }
 
-impl<S, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>
-    AuthenticationMiddleware<S, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>
+impl<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+    AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     Algorithm: jwt_compact::Algorithm,
     Algorithm::SigningKey: Clone,
@@ -30,7 +30,7 @@ where
 {
     pub fn new(
         service: Rc<S>,
-        inner: Arc<Authority<Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>>,
+        inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
     ) -> Self {
         Self {
             service,
@@ -40,8 +40,8 @@ where
     }
 }
 
-impl<S, Body, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs> Service<ServiceRequest>
-    for AuthenticationMiddleware<S, Claims, Algorithm, ReAuthorizer, ReAuthorizerArgs>
+impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> Service<ServiceRequest>
+    for AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
     S::Future: 'static,
@@ -50,8 +50,8 @@ where
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
     Body: MessageBody,
-    ReAuthorizer: Handler<ReAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
-    ReAuthorizerArgs: FromRequest + Clone + 'static,
+    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
+    RefreshAuthorizerArgs: FromRequest + Clone + 'static,
 {
     type Response = ServiceResponse<Body>;
     type Error = S::Error;
