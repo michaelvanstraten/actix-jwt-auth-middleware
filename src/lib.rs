@@ -20,7 +20,7 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 
 - `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
 
-It tightly integrates into the actix-web ecosystem,
+This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
 
 ```rust

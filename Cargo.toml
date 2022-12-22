@@ -13,7 +13,6 @@ license = "MIT"
 
 [features]
 use_jwt_traits = []
-better_refresh_authorizer = []
 
 [dependencies]
 serde = "1.0.145"
