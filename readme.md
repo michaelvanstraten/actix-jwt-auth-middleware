@@ -17,8 +17,11 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 - simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
 - refresh authorizer function that has access to application state
 
+## Crate Features
 
-It tightly integrates into the actix-web ecosystem,
+- `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
+
+This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
 
 ```rust
@@ -36,7 +39,7 @@ enum Role {
 async fn hello(user_claims: UserClaims) -> impl Responder {
     format!(
         "Hello user with id: {}, i see you are a {:?}!",
-        user_claims.id, user_claims.role
+            user_claims.id, user_claims.role
     )
 }
 ```
@@ -58,25 +61,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
     let cookie_signer = CookieSigner::new()
-    .signing_key(key_pair.secret_key().clone())
-    .algorithm(Ed25519)
-    .build()?;
+        .signing_key(key_pair.secret_key().clone())
+        .algorithm(Ed25519)
+        .build()?;
 
     let authority = Authority::<User, _, _, _>::new()
-    .refresh_authorizer(|| async move { Ok(()) })
-    .cookie_signer(Some(cookie_signer.clone()))
-    .verifying_key(key_pair.public_key().clone())
-    .build()?;
+        .refresh_authorizer(|| async move { Ok(()) })
+        .cookie_signer(Some(cookie_signer.clone()))
+        .verifying_key(key_pair.public_key().clone())
+        .build()?;
 
     Ok(HttpServer::new(move || {
         App::new()
-        .service(login)
-        .app_data(Data::new(cookie_signer.clone()))
-        .service(
-            web::scope("")
-            .service(hello)
-            .use_jwt(authority.clone())
-        )
+            .service(login)
+            .app_data(Data::new(cookie_signer.clone()))
+            .service(
+                web::scope("")
+                    .service(hello)
+                    .use_jwt(authority.clone())
+            )
     })
     .bind(("127.0.0.1", 8080))?
     .run()
@@ -87,9 +90,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn login(cookie_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
-    .cookie(cookie_signer.create_access_token_cookie(&user)?)
-    .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
-    .body("You are now logged in"))
+        .cookie(cookie_signer.create_access_token_cookie(&user)?)
+        .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
+        .body("You are now logged in"))
 }
 
 #[get("/hello")]
@@ -99,9 +102,5 @@ async fn hello(user: User) -> impl Responder {
 ```
 
 For more examples please referee to the `examples` directory.
-
-## Crate Features
-
-- `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
 
 License: MIT
