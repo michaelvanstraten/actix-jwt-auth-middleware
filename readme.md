@@ -17,6 +17,10 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 - simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
 - refresh authorizer function that has access to application state
 
+## Crate Features
+
+- `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
+
 It tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
 
