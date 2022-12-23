@@ -70,6 +70,37 @@ async fn valid_access_token_header() {
 }
 
 #[actix_web::test]
+async fn deactivated_access_token_header() {
+    let authority: Authority<TestClaims, _, _, _> = Authority::new()
+        .algorithm(Ed25519)
+        .verifying_key(KEY_PAIR.public_key())
+        .time_options(*TIME_OPTIONS)
+        .refresh_authorizer(|| async { Ok(()) })
+        .build()
+        .unwrap();
+
+    let cookie =  COOKIE_SIGNER
+        .create_access_token_cookie(&TestClaims {})
+        .unwrap();  
+
+    let req = TestRequest::default()
+        .insert_header((
+            cookie.name(),
+            cookie.value(),
+        ))
+        .to_srv_request();
+
+    assert_eq!(
+        authority
+            .verify_service_request(req)
+            .await
+            .expect_err("Testing no token case"),
+        AuthError::NoCookie
+    )
+
+}
+
+#[actix_web::test]
 async fn valid_refresh_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .verifying_key(KEY_PAIR.public_key())
