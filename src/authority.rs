@@ -176,8 +176,8 @@ where
         mut req: ServiceRequest,
     ) -> AuthResult<(ServiceRequest, Option<TokenUpdate>)> {
 
-        let access_token_value= get_token_value(&req, self.access_token_name);
-        let refresh_token_value = get_token_value(&req, self.refresh_token_name);
+        let access_token_value= get_token_value(&req, self.access_token_name, self.enable_header_tokens);
+        let refresh_token_value = get_token_value(&req, self.refresh_token_name, self.enable_header_tokens);
 
         match self.validate_token(&access_token_value) {
             Ok(access_token) => {
@@ -272,11 +272,17 @@ where
     }
 }
 
-fn get_token_value<'a>(req: &'a ServiceRequest, token_name: &str) -> Option<String> {
-    let Some(cookie_value) = req.cookie(token_name).map(|cookie| cookie.value().to_string()) else {
-        return get_header_value(token_name, req)
-    };
-    Some(cookie_value)
+fn get_token_value<'a>(req: &'a ServiceRequest, token_name: &str, enable_http_header: bool) -> Option<String> {
+
+    match req.cookie(token_name) {
+        Some(cookie) => Some(cookie.value().to_string()),
+        None => {
+            if enable_http_header {
+                return get_header_value(token_name, req);
+            }
+            None
+        }
+    }
 }
 
 fn get_header_value<'a>(key: &str, req: &'a ServiceRequest) -> Option<String> {
