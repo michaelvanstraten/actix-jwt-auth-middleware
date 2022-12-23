@@ -176,19 +176,10 @@ where
         mut req: ServiceRequest,
     ) -> AuthResult<(ServiceRequest, Option<TokenUpdate>)> {
 
-        let mut access_token_value = self.get_token_value(&req, self.access_token_name);
-        let refresh_token_value = self.get_token_value(&req, self.refresh_token_name);
+        let access_token_value= get_token_value(&req, self.access_token_name);
+        let refresh_token_value = get_token_value(&req, self.refresh_token_name);
 
-        if access_token_value.len() == 0 && refresh_token_value.len() == 0 {
-
-            return Err(AuthError::NoCookie);
-        }
-
-        if access_token_value.len() == 0 && refresh_token_value.len() != 0 {
-            access_token_value = refresh_token_value.clone();
-        }
-
-        match self.validate_secret(String::from(access_token_value).as_str()) {
+        match self.validate_token(&access_token_value) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
@@ -199,7 +190,7 @@ where
             {
                 self.call_refresh_authorizer(&mut req).await?;
                 match (
-                    self.validate_secret(refresh_token_value.as_str()),
+                    self.validate_token(&refresh_token_value),
                     &self.cookie_signer,
                 ) {
                     (Ok(refresh_token), Some(cookie_signer)) => {
@@ -219,7 +210,7 @@ where
                         if self.renew_refresh_token_automatically =>
                     {
                         let claims = UntrustedToken::new(
-                            refresh_token_value.as_str(),
+                            &refresh_token_value.unwrap(),
                         )
                         .unwrap()
                         .deserialize_claims_unchecked::<Claims>()
@@ -246,48 +237,24 @@ where
         }
     }
 
-    fn get_token_value(&self, req: &ServiceRequest, token_name: &str) -> String {
-
-        let mut token_value = String::new();
-        let cookie_access = req.cookie(token_name);
-        
-        if let Some(token_cookie) = cookie_access {
-
-            token_value = String::from(token_cookie.value());
-        } else if self.enable_header_tokens {
-
-            let header_access = self.get_header_value(token_name, &req);
-
-            if let Some(token_header) = header_access {
-
-                token_value = String::from(token_header);
-            }
-        }
-
-        return token_value;
-
-    }
-
-    fn get_header_value<'a>(&self, key: &str, req: &'a ServiceRequest) -> Option<&'a str> {
-        req.headers().get(key)?.to_str().ok()
-    }
-
-    fn validate_secret(&self, token_value: &str) -> AuthResult<Token<Claims>> {
-
-        match UntrustedToken::new(token_value) {
-            Ok(untrusted_token) => {
-                match self
-                    .algorithm
-                    .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
-                {
-                    Ok(token) => match token.claims().validate_expiration(&self.time_options) {
-                        Ok(_) => Ok(token),
-                        Err(err) => Err(AuthError::TokenValidation(err)),
-                    },
-                    Err(err) => Err(err.into()),
+    fn validate_token(&self, possible_token_value: &Option<String>) -> AuthResult<Token<Claims>> {
+        match possible_token_value {
+            Some(token_value) => match UntrustedToken::new(token_value) {
+                Ok(untrusted_token) => {
+                    match self
+                        .algorithm
+                        .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
+                    {
+                        Ok(token) => match token.claims().validate_expiration(&self.time_options) {
+                            Ok(_) => Ok(token),
+                            Err(err) => Err(AuthError::TokenValidation(err)),
+                        },
+                        Err(err) => Err(err.into()),
+                    }
                 }
-            }
-            Err(err) => Err(err.into()),
+                Err(err) => Err(err.into()),
+            },
+            None => Err(AuthError::NoCookie),
         }
     }
     
@@ -303,4 +270,15 @@ where
             Err(err) => Err(AuthError::Internal(err.into())),
         }
     }
+}
+
+fn get_token_value<'a>(req: &'a ServiceRequest, token_name: &str) -> Option<String> {
+    let Some(cookie_value) = req.cookie(token_name).map(|cookie| cookie.value().to_string()) else {
+        return get_header_value(token_name, req)
+    };
+    Some(cookie_value)
+}
+
+fn get_header_value<'a>(key: &str, req: &'a ServiceRequest) -> Option<String> {
+    req.headers().get(key)?.to_str().ok().map(String::from)
 }
