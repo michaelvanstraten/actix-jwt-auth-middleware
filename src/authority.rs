@@ -107,6 +107,12 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
+        If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+        http headers.
+     */
+    #[builder(default = "false")]
+    enable_header_tokens: bool,
+    /**
         Key used to verify integrity of access and refresh token.
     */
     verifying_key: Algorithm::VerifyingKey,
@@ -169,7 +175,11 @@ where
         &self,
         mut req: ServiceRequest,
     ) -> AuthResult<(ServiceRequest, Option<TokenUpdate>)> {
-        match self.validate_cookie(req.cookie(self.access_token_name)) {
+
+        let access_token_value= get_token_value(&req, self.access_token_name);
+        let refresh_token_value = get_token_value(&req, self.refresh_token_name);
+
+        match self.validate_token(&access_token_value) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
@@ -180,7 +190,7 @@ where
             {
                 self.call_refresh_authorizer(&mut req).await?;
                 match (
-                    self.validate_cookie(req.cookie(self.refresh_token_name)),
+                    self.validate_token(&refresh_token_value),
                     &self.cookie_signer,
                 ) {
                     (Ok(refresh_token), Some(cookie_signer)) => {
@@ -200,7 +210,7 @@ where
                         if self.renew_refresh_token_automatically =>
                     {
                         let claims = UntrustedToken::new(
-                            req.cookie(self.refresh_token_name).unwrap().value(),
+                            &refresh_token_value.unwrap(),
                         )
                         .unwrap()
                         .deserialize_claims_unchecked::<Claims>()
@@ -227,9 +237,9 @@ where
         }
     }
 
-    fn validate_cookie(&self, cookie: Option<Cookie>) -> AuthResult<Token<Claims>> {
-        if let Some(token_cookie) = cookie {
-            match UntrustedToken::new(token_cookie.value()) {
+    fn validate_token(&self, possible_token_value: &Option<String>) -> AuthResult<Token<Claims>> {
+        match possible_token_value {
+            Some(token_value) => match UntrustedToken::new(token_value) {
                 Ok(untrusted_token) => {
                     match self
                         .algorithm
@@ -243,11 +253,11 @@ where
                     }
                 }
                 Err(err) => Err(err.into()),
-            }
-        } else {
-            Err(AuthError::NoCookie)
+            },
+            None => Err(AuthError::NoCookie),
         }
     }
+    
 
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
         let (mut_req, mut payload) = req.parts_mut();
@@ -260,4 +270,15 @@ where
             Err(err) => Err(AuthError::Internal(err.into())),
         }
     }
+}
+
+fn get_token_value<'a>(req: &'a ServiceRequest, token_name: &str) -> Option<String> {
+    let Some(cookie_value) = req.cookie(token_name).map(|cookie| cookie.value().to_string()) else {
+        return get_header_value(token_name, req)
+    };
+    Some(cookie_value)
+}
+
+fn get_header_value<'a>(key: &str, req: &'a ServiceRequest) -> Option<String> {
+    req.headers().get(key)?.to_str().ok().map(String::from)
 }
