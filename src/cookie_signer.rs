@@ -1,12 +1,16 @@
+use crate::AuthError;
+use crate::AuthResult;
+
 use std::marker::PhantomData;
 
 use actix_web::cookie::Cookie;
 use chrono::Duration;
 use derive_builder::Builder;
-use jwt_compact::{AlgorithmExt, Claims as TokenClaims, Header, TimeOptions};
+use jwt_compact::AlgorithmExt;
+use jwt_compact::Claims as TokenClaims;
+use jwt_compact::Header;
+use jwt_compact::TimeOptions;
 use serde::Serialize;
-
-use crate::{AuthError, AuthResult};
 
 /**
     Used in the creation process of access and refresh tokens.

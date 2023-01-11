@@ -1,12 +1,23 @@
-use super::{AuthenticationMiddleware, Authority};
-use actix_web::{
-    body::MessageBody,
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
-    Error, FromRequest, Handler,
-};
+use super::AuthenticationMiddleware;
+use super::Authority;
+
+use std::marker::PhantomData;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use actix_web::body::MessageBody;
+use actix_web::dev::Service;
+use actix_web::dev::ServiceRequest;
+use actix_web::dev::ServiceResponse;
+use actix_web::dev::Transform;
+use actix_web::Error;
+use actix_web::FromRequest;
+use actix_web::Handler;
+
 use futures_util::future;
-use serde::{de::DeserializeOwned, Serialize};
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 /**
    A wrapper around the [`Authority`] which can be passed to the `wrap` function of a [`App`](actix_web::App)/[`Scope`](actix_web::Scope) or [`Resource`](actix_web::Resource).

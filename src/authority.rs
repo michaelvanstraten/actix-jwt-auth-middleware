@@ -1,13 +1,22 @@
+use crate::validate::validate_jwt;
+use crate::AuthError;
+use crate::AuthResult;
+use crate::CookieSigner;
+
 use std::marker::PhantomData;
 
-use crate::{AuthError, AuthResult, CookieSigner};
-
-use actix_web::{cookie::Cookie, dev::ServiceRequest, FromRequest, Handler, HttpMessage};
+use actix_web::cookie::Cookie;
+use actix_web::dev::ServiceRequest;
+use actix_web::FromRequest;
+use actix_web::Handler;
+use actix_web::HttpMessage;
 use derive_builder::Builder;
-use jwt_compact::{
-    AlgorithmExt, TimeOptions, Token, UntrustedToken, ValidationError::Expired as TokenExpired,
-};
-use serde::{de::DeserializeOwned, Serialize};
+use jwt_compact::TimeOptions;
+use jwt_compact::Token;
+use jwt_compact::UntrustedToken;
+use jwt_compact::ValidationError::Expired as TokenExpired;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 macro_rules! pull_from_cookie_signer {
     ($self:ident ,$field_name:ident) => {
@@ -107,9 +116,9 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
-        If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
-        http headers.
-     */
+       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       http headers.
+    */
     #[builder(default = "false")]
     enable_header_tokens: bool,
     /**
@@ -143,7 +152,8 @@ where
     _args: PhantomData<Args>,
 }
 
-impl<Claims, Algorithm, RefreshAuthorizer, Args> Authority<Claims, Algorithm, RefreshAuthorizer, Args>
+impl<Claims, Algorithm, RefreshAuthorizer, Args>
+    Authority<Claims, Algorithm, RefreshAuthorizer, Args>
 where
     Claims: Serialize + DeserializeOwned + Clone + 'static,
     Algorithm: jwt_compact::Algorithm + Clone,
@@ -173,22 +183,23 @@ where
     */
     pub async fn verify_service_request(
         &self,
-        mut req: ServiceRequest,
-    ) -> AuthResult<(ServiceRequest, Option<TokenUpdate>)> {
-
-        let access_token_value= get_token_value(&req, self.access_token_name, self.enable_header_tokens);
-        let refresh_token_value = get_token_value(&req, self.refresh_token_name, self.enable_header_tokens);
+        req: &mut ServiceRequest,
+    ) -> AuthResult<Option<TokenUpdate>> {
+        let access_token_value =
+            get_token_value(&req, self.access_token_name, self.enable_header_tokens);
+        let refresh_token_value =
+            get_token_value(&req, self.refresh_token_name, self.enable_header_tokens);
 
         match self.validate_token(&access_token_value) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
-                Ok((req, None))
+                Ok(None)
             }
-            Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoCookie)
+            Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoToken)
                 if self.renew_access_token_automatically =>
             {
-                self.call_refresh_authorizer(&mut req).await?;
+                self.call_refresh_authorizer(req).await?;
                 match (
                     self.validate_token(&refresh_token_value),
                     &self.cookie_signer,
@@ -196,38 +207,26 @@ where
                     (Ok(refresh_token), Some(cookie_signer)) => {
                         let claims = refresh_token.claims().custom.clone();
                         req.extensions_mut().insert(claims.clone());
-                        Ok((
-                            req,
-                            Some(TokenUpdate {
-                                auth_cookie: Some(
-                                    cookie_signer.create_access_token_cookie(&claims)?,
-                                ),
-                                refresh_cookie: None,
-                            }),
-                        ))
+                        Ok(Some(TokenUpdate {
+                            auth_cookie: Some(cookie_signer.create_access_token_cookie(&claims)?),
+                            refresh_cookie: None,
+                        }))
                     }
                     (Err(AuthError::TokenValidation(TokenExpired)), Some(cookie_signer))
                         if self.renew_refresh_token_automatically =>
                     {
-                        let claims = UntrustedToken::new(
-                            &refresh_token_value.unwrap(),
-                        )
-                        .unwrap()
-                        .deserialize_claims_unchecked::<Claims>()
-                        .unwrap()
-                        .custom;
+                        let claims = UntrustedToken::new(&refresh_token_value.unwrap())
+                            .unwrap()
+                            .deserialize_claims_unchecked::<Claims>()
+                            .unwrap()
+                            .custom;
                         req.extensions_mut().insert(claims.clone());
-                        Ok((
-                            req,
-                            Some(TokenUpdate {
-                                auth_cookie: Some(
-                                    cookie_signer.create_access_token_cookie(&claims)?,
-                                ),
-                                refresh_cookie: Some(
-                                    cookie_signer.create_refresh_token_cookie(&claims)?,
-                                ),
-                            }),
-                        ))
+                        Ok(Some(TokenUpdate {
+                            auth_cookie: Some(cookie_signer.create_access_token_cookie(&claims)?),
+                            refresh_cookie: Some(
+                                cookie_signer.create_refresh_token_cookie(&claims)?,
+                            ),
+                        }))
                     }
                     (Ok(_), None) => Err(AuthError::NoCookieSigner),
                     (Err(err), _) => Err(err),
@@ -239,25 +238,15 @@ where
 
     fn validate_token(&self, possible_token_value: &Option<String>) -> AuthResult<Token<Claims>> {
         match possible_token_value {
-            Some(token_value) => match UntrustedToken::new(token_value) {
-                Ok(untrusted_token) => {
-                    match self
-                        .algorithm
-                        .validate_integrity::<Claims>(&untrusted_token, &self.verifying_key)
-                    {
-                        Ok(token) => match token.claims().validate_expiration(&self.time_options) {
-                            Ok(_) => Ok(token),
-                            Err(err) => Err(AuthError::TokenValidation(err)),
-                        },
-                        Err(err) => Err(err.into()),
-                    }
-                }
-                Err(err) => Err(err.into()),
-            },
-            None => Err(AuthError::NoCookie),
+            Some(token_value) => validate_jwt(
+                &token_value,
+                &self.algorithm,
+                &self.verifying_key,
+                &self.time_options,
+            ),
+            None => Err(AuthError::NoToken),
         }
     }
-    
 
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
         let (mut_req, mut payload) = req.parts_mut();
@@ -272,8 +261,11 @@ where
     }
 }
 
-fn get_token_value<'a>(req: &'a ServiceRequest, token_name: &str, enable_http_header: bool) -> Option<String> {
-
+fn get_token_value<'a>(
+    req: &'a ServiceRequest,
+    token_name: &str,
+    enable_http_header: bool,
+) -> Option<String> {
     match req.cookie(token_name) {
         Some(cookie) => Some(cookie.value().to_string()),
         None => {

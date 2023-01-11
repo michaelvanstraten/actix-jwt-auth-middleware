@@ -111,12 +111,13 @@ For more examples please referee to the `examples` directory.
 #[cfg(feature = "use_jwt_traits")]
 mod use_jwt;
 
-
 mod authority;
 mod cookie_signer;
 mod errors;
 mod middleware;
+mod rest_authority;
 mod service;
+mod validate;
 
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;

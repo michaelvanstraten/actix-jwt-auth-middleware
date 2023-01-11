@@ -1,5 +1,10 @@
-use actix_web::{body::BoxBody, http::StatusCode, HttpResponse, ResponseError};
-use jwt_compact::{CreationError, ParseError, ValidationError};
+use actix_web::body::BoxBody;
+use actix_web::http::StatusCode;
+use actix_web::HttpResponse;
+use actix_web::ResponseError;
+use jwt_compact::CreationError;
+use jwt_compact::ParseError;
+use jwt_compact::ValidationError;
 
 pub type AuthResult<T> = Result<T, AuthError>;
 
@@ -8,11 +13,10 @@ pub type AuthResult<T> = Result<T, AuthError>;
 
     if #[cfg(debug_assertions)] is true the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation) are in included in the error message.
 */
-
 #[derive(Debug)]
 pub enum AuthError {
     Internal(actix_web::Error),
-    NoCookie,
+    NoToken,
     NoCookieSigner,
     RefreshAuthorizerDenied(actix_web::Error),
     TokenCreation(CreationError),
@@ -52,11 +56,11 @@ impl Into<AuthError> for ValidationError {
 
 impl std::fmt::Display for AuthError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const NO_COOKIE_MESSAGE: &str = "An error occurred, no cookie containing a jwt was found in the request. Please first authenticate with this application.";
+        const NO_TOKEN_MESSAGE: &str = "An error occurred, no cookie containing a jwt was found in the request. Please first authenticate with this application.";
 
         #[cfg(not(debug_assertions))]
         match self {
-            AuthError::NoCookie => f.write_str(NO_COOKIE_MESSAGE),
+            AuthError::NoToken => f.write_str(NO_TOKEN_MESSAGE),
             AuthError::RefreshAuthorizerDenied(err) => f.write_str(&err.to_string()),
             AuthError::TokenParse(_) | AuthError::TokenValidation(_) => {
                 f.write_str("An error occurred, the provided jwt could not be processed.")
@@ -67,7 +71,7 @@ impl std::fmt::Display for AuthError {
         }
         #[cfg(debug_assertions)]
         match self {
-            AuthError::NoCookie => f.write_str(NO_COOKIE_MESSAGE),
+            AuthError::NoToken => f.write_str(NO_TOKEN_MESSAGE),
             AuthError::NoCookieSigner => f.write_str(
                 "An error occurred because no CookieSigner was configured on the Authority struct.",
             ),
@@ -94,7 +98,7 @@ impl ResponseError for AuthError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
-            AuthError::NoCookie | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::NoToken | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
             AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => {
                 err.as_response_error().status_code()
             }

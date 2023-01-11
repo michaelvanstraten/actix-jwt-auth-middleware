@@ -1,13 +1,21 @@
 use crate::Authority;
 
-use actix_web::{
-    body::MessageBody,
-    dev::{forward_ready, Service, ServiceRequest, ServiceResponse},
-    Error, FromRequest, Handler,
-};
-use futures_util::future::{FutureExt as _, LocalBoxFuture};
-use serde::{de::DeserializeOwned, Serialize};
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::marker::PhantomData;
+use std::rc::Rc;
+use std::sync::Arc;
+
+use actix_web::body::MessageBody;
+use actix_web::dev::forward_ready;
+use actix_web::dev::Service;
+use actix_web::dev::ServiceRequest;
+use actix_web::dev::ServiceResponse;
+use actix_web::Error;
+use actix_web::FromRequest;
+use actix_web::Handler;
+use futures_util::future::FutureExt as _;
+use futures_util::future::LocalBoxFuture;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[doc(hidden)]
 pub struct AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
@@ -50,7 +58,8 @@ where
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
     Body: MessageBody,
-    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
+    RefreshAuthorizer:
+        Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
     RefreshAuthorizerArgs: FromRequest + Clone + 'static,
 {
     type Response = ServiceResponse<Body>;
@@ -59,13 +68,13 @@ where
 
     forward_ready!(service);
 
-    fn call(&self, req: ServiceRequest) -> Self::Future {
+    fn call(&self, mut req: ServiceRequest) -> Self::Future {
         let inner = Arc::clone(&self.inner);
         let service = Rc::clone(&self.service);
 
         async move {
-            match inner.verify_service_request(req).await {
-                Ok((req, token_update)) => service.call(req).await.and_then(|mut res| {
+            match inner.verify_service_request(&mut req).await {
+                Ok(token_update) => service.call(req).await.and_then(|mut res| {
                     if let Some(token_update) = token_update {
                         if let Some(auth_cookie) = token_update.auth_cookie {
                             res.response_mut().add_cookie(&auth_cookie)?

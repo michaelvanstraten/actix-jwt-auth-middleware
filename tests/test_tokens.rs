@@ -95,7 +95,7 @@ async fn deactivated_access_token_header() {
             .verify_service_request(req)
             .await
             .expect_err("Testing no token case"),
-        AuthError::NoCookie
+        AuthError::NoToken
     )
 
 }
@@ -137,7 +137,7 @@ async fn no_token() {
             .verify_service_request(req)
             .await
             .expect_err("Testing no token case"),
-        AuthError::NoCookie
+        AuthError::NoToken
     )
 }
 
