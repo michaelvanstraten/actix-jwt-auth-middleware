@@ -116,12 +116,6 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
-       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
-       http headers.
-    */
-    #[builder(default = "false")]
-    enable_header_tokens: bool,
-    /**
         Key used to verify integrity of access and refresh token.
     */
     verifying_key: Algorithm::VerifyingKey,
@@ -185,12 +179,7 @@ where
         &self,
         req: &mut ServiceRequest,
     ) -> AuthResult<Option<TokenUpdate>> {
-        let access_token_value =
-            get_token_value(&req, self.access_token_name, self.enable_header_tokens);
-        let refresh_token_value =
-            get_token_value(&req, self.refresh_token_name, self.enable_header_tokens);
-
-        match self.validate_token(&access_token_value) {
+        match self.validate_cookie(&req, self.access_token_name) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
@@ -201,7 +190,7 @@ where
             {
                 self.call_refresh_authorizer(req).await?;
                 match (
-                    self.validate_token(&refresh_token_value),
+                    self.validate_cookie(&req, self.refresh_token_name),
                     &self.cookie_signer,
                 ) {
                     (Ok(refresh_token), Some(cookie_signer)) => {
@@ -215,11 +204,16 @@ where
                     (Err(AuthError::TokenValidation(TokenExpired)), Some(cookie_signer))
                         if self.renew_refresh_token_automatically =>
                     {
-                        let claims = UntrustedToken::new(&refresh_token_value.unwrap())
-                            .unwrap()
-                            .deserialize_claims_unchecked::<Claims>()
-                            .unwrap()
-                            .custom;
+                        let claims = UntrustedToken::new(
+                            req
+                                .cookie(self.refresh_token_name)
+                                .expect("Cookie has to be set in oder to get to this point")
+                                .value(),
+                        )
+                        .expect("UntrustedToken token has to be parseable fro, cookie value in order to get to here")
+                        .deserialize_claims_unchecked::<Claims>()
+                        .expect("Claims has to be desirializeable to get to this point")
+                        .custom;
                         req.extensions_mut().insert(claims.clone());
                         Ok(Some(TokenUpdate {
                             auth_cookie: Some(cookie_signer.create_access_token_cookie(&claims)?),
@@ -236,10 +230,14 @@ where
         }
     }
 
-    fn validate_token(&self, possible_token_value: &Option<String>) -> AuthResult<Token<Claims>> {
-        match possible_token_value {
+    fn validate_cookie(
+        &self,
+        req: &ServiceRequest,
+        cookie_name: &'static str,
+    ) -> AuthResult<Token<Claims>> {
+        match req.cookie(cookie_name) {
             Some(token_value) => validate_jwt(
-                &token_value,
+                &token_value.value(),
                 &self.algorithm,
                 &self.verifying_key,
                 &self.time_options,
@@ -259,24 +257,4 @@ where
             Err(err) => Err(AuthError::Internal(err.into())),
         }
     }
-}
-
-fn get_token_value<'a>(
-    req: &'a ServiceRequest,
-    token_name: &str,
-    enable_http_header: bool,
-) -> Option<String> {
-    match req.cookie(token_name) {
-        Some(cookie) => Some(cookie.value().to_string()),
-        None => {
-            if enable_http_header {
-                return get_header_value(token_name, req);
-            }
-            None
-        }
-    }
-}
-
-fn get_header_value<'a>(key: &str, req: &'a ServiceRequest) -> Option<String> {
-    req.headers().get(key)?.to_str().ok().map(String::from)
 }

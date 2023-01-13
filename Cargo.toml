@@ -12,22 +12,24 @@ description = "This crate implements a JSON Webtoken (JWT) middleware for the ac
 license = "MIT"
 
 [features]
-use_jwt_traits = []
+use_jwt_on_resource = []
 
 [dependencies]
 serde = "1.0.145"
-actix-web = { version = "4.2.1", default-features = false, features = [
-    "cookies",
-] }
 derive_builder = "0.11.2"
-jwt-compact = { version = "0.6.0", default-features = false, features = [
-    "std",
-    "clock",
-    "exonum-crypto",
-] }
-actix-jwt-auth-middleware-derive = "^0.1"
+actix-jwt-auth-middleware-derive = { path = "derive", version = "0.1.1" }
 futures-util = "0.3.21"
 chrono = "0.4.22"
+
+[dependencies.actix-web]
+version = "4.2.1"
+default_features = false
+features = ["cookies"]
+
+[dependencies.jwt-compact]
+version = "0.6.0"
+default-features = false
+features = ["std", "clock", "exonum-crypto"]
 
 [dev-dependencies]
 exonum-crypto = "1.0.0"

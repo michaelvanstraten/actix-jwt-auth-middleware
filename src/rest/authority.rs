@@ -17,7 +17,7 @@ use serde::Serialize;
 /**
     Handles the authorization of requests for the middleware as well as refreshing the `access`/`refresh` token.
 
-    Please referee to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
+    Please referee to the [`RestAuthorityBuilder`] for a detailed description of options available on this struct.
 */
 #[derive(Builder, Clone)]
 pub struct RestAuthority<Claims, Algorithm>
@@ -88,14 +88,14 @@ where
         or deny the request by return a wrapped [`AuthError`].
     */
     pub async fn verify_service_request(&self, req: &mut ServiceRequest) -> AuthResult<()> {
-        match self.validate_token(req.headers(), self.access_token_name) {
+        match self.validate_bear_token(req.headers(), self.access_token_name) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
                 Ok(())
             }
             Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoToken) => {
-                match self.validate_token(req.headers(), self.refresh_token_name) {
+                match self.validate_bear_token(req.headers(), self.refresh_token_name) {
                     Ok(refresh_token) => {
                         let claims = refresh_token.claims().custom.clone();
                         req.extensions_mut().insert(claims.clone());
@@ -108,7 +108,7 @@ where
         }
     }
 
-    fn validate_token(
+    fn validate_bear_token(
         &self,
         header_map: &HeaderMap,
         header_key: &'static str,

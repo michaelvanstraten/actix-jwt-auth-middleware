@@ -73,12 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(HttpServer::new(move || {
         App::new()
             .service(login)
-            .app_data(Data::new(cookie_signer.clone()))
-            .service(
-                web::scope("")
-                    .service(hello)
-                    .use_jwt(authority.clone())
-            )
+            .use_jwt(authority.clone, web::scope("").service(hello))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
@@ -105,17 +100,16 @@ For more examples please referee to the `examples` directory.
 
 #![allow(incomplete_features)]
 #![cfg_attr(
-    feature = "use_jwt_traits",
+    feature = "use_jwt_on_resource",
     feature(return_position_impl_trait_in_trait)
 )]
-#[cfg(feature = "use_jwt_traits")]
-mod use_jwt;
+pub mod use_jwt;
 
 mod authority;
 mod cookie_signer;
 mod errors;
 mod middleware;
-mod rest_authority;
+mod rest;
 mod service;
 mod validate;
 
@@ -126,7 +120,5 @@ pub use authority::*;
 pub use cookie_signer::*;
 pub use errors::*;
 pub use middleware::*;
+pub use rest::*;
 pub use service::*;
-
-#[cfg(feature = "use_jwt_traits")]
-pub use use_jwt::{App as UseJWTOnApp, Resource as UseJWTOnResource, Scope as UseJWTOnScope};

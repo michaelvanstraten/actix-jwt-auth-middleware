@@ -33,7 +33,7 @@ async fn valid_access_token() {
         .build()
         .unwrap();
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
                 .create_access_token_cookie(&TestClaims {})
@@ -41,7 +41,7 @@ async fn valid_access_token() {
         )
         .to_srv_request();
 
-    assert!(authority.verify_service_request(req).await.is_ok())
+    assert!(authority.verify_service_request(&mut req).await.is_ok())
 }
 
 #[actix_web::test]
@@ -59,14 +59,14 @@ async fn valid_access_token_header() {
         .create_access_token_cookie(&TestClaims {})
         .unwrap();  
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .insert_header((
             cookie.name(),
                 cookie.value(),
         ))
         .to_srv_request();
 
-    assert!(authority.verify_service_request(req).await.is_ok())
+    assert!(authority.verify_service_request(&mut req).await.is_ok())
 }
 
 #[actix_web::test]
@@ -83,7 +83,7 @@ async fn deactivated_access_token_header() {
         .create_access_token_cookie(&TestClaims {})
         .unwrap();  
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .insert_header((
             cookie.name(),
             cookie.value(),
@@ -92,7 +92,7 @@ async fn deactivated_access_token_header() {
 
     assert_eq!(
         authority
-            .verify_service_request(req)
+            .verify_service_request(&mut req)
             .await
             .expect_err("Testing no token case"),
         AuthError::NoToken
@@ -109,7 +109,7 @@ async fn valid_refresh_token() {
         .build()
         .unwrap();
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
                 .create_refresh_token_cookie(&TestClaims {})
@@ -117,7 +117,7 @@ async fn valid_refresh_token() {
         )
         .to_srv_request();
 
-    assert!(authority.verify_service_request(req).await.is_ok())
+    assert!(authority.verify_service_request(&mut req).await.is_ok())
 }
 
 #[actix_web::test]
@@ -130,11 +130,11 @@ async fn no_token() {
         .build()
         .unwrap();
 
-    let req = TestRequest::default().to_srv_request();
+    let mut req = TestRequest::default().to_srv_request();
 
     assert_eq!(
         authority
-            .verify_service_request(req)
+            .verify_service_request(&mut req)
             .await
             .expect_err("Testing no token case"),
         AuthError::NoToken
@@ -154,7 +154,7 @@ async fn expired_token() {
         .build()
         .unwrap();
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
                 .create_access_token_cookie(&TestClaims {})
@@ -164,7 +164,7 @@ async fn expired_token() {
 
     assert_eq!(
         authority
-            .verify_service_request(req)
+            .verify_service_request(&mut req)
             .await
             .expect_err("Testing expired token case"),
         AuthError::TokenValidation(TokenExpired)
@@ -184,13 +184,13 @@ async fn nonce_token() {
         .build()
         .unwrap();
 
-    let req = TestRequest::default()
+    let mut req = TestRequest::default()
         .cookie(Cookie::build("access_token", "not-a-valid-token").finish())
         .to_srv_request();
 
     assert_eq!(
         authority
-            .verify_service_request(req)
+            .verify_service_request(&mut req)
             .await
             .expect_err("Testing not parsable token case"),
         AuthError::TokenParse(ParseError::InvalidTokenStructure)
