@@ -94,10 +94,11 @@ impl ResponseError for AuthError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
-            AuthError::NoCookie | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
+            AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
             AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => {
                 err.as_response_error().status_code()
             }
+            AuthError::NoCookie => StatusCode::FOUND,
         }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
@@ -105,6 +106,10 @@ impl ResponseError for AuthError {
             AuthError::RefreshAuthorizerDenied(err) | AuthError::Internal(err) => {
                 err.error_response()
             }
+            AuthError::NoCookie => HttpResponse::build(self.status_code())
+                .append_header(("Location", "/login"))
+                .body(self.to_string()),
+
             _ => HttpResponse::build(self.status_code()).body(self.to_string()),
         }
     }
