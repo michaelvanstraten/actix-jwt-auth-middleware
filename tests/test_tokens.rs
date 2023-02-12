@@ -1,4 +1,4 @@
-use actix_jwt_auth_middleware::{AuthError, Authority, CookieSigner};
+use actix_jwt_auth_middleware::{AuthError, Authority, TokenSigner};
 use actix_web::{cookie::Cookie, test::TestRequest};
 use chrono::{Duration, Utc};
 use exonum_crypto::KeyPair;
@@ -16,7 +16,7 @@ lazy_static! {
     static ref TIME_OPTIONS: TimeOptions = TimeOptions::from_leeway(Duration::min_value());
     static ref HEADER: Header = Header::default();
     static ref CLAIMS: Claims<TestClaims> = Claims::new(TestClaims {});
-    static ref COOKIE_SIGNER: CookieSigner<TestClaims, Ed25519> = CookieSigner::new()
+    static ref COOKIE_SIGNER: TokenSigner<TestClaims, Ed25519> = TokenSigner::new()
         .algorithm(Ed25519)
         .signing_key(KEY_PAIR.secret_key().clone())
         .build()
@@ -36,7 +36,7 @@ async fn valid_access_token() {
     let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
-                .create_access_token_cookie(&TestClaims {})
+                .create_access_cookie(&TestClaims {})
                 .unwrap(),
         )
         .to_srv_request();
@@ -46,17 +46,15 @@ async fn valid_access_token() {
 
 #[actix_web::test]
 async fn valid_access_token_header() {
-    let authority: Authority<TestClaims, _, _, _> = Authority::new()
+    let authority: RestAuthorizer<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
         .verifying_key(KEY_PAIR.public_key())
         .time_options(*TIME_OPTIONS)
-        .refresh_authorizer(|| async { Ok(()) })
-        .enable_header_tokens(true)
         .build()
         .unwrap();
 
     let cookie =  COOKIE_SIGNER
-        .create_access_token_cookie(&TestClaims {})
+        .create_access_cookie(&TestClaims {})
         .unwrap();  
 
     let mut req = TestRequest::default()
@@ -80,7 +78,7 @@ async fn deactivated_access_token_header() {
         .unwrap();
 
     let cookie =  COOKIE_SIGNER
-        .create_access_token_cookie(&TestClaims {})
+        .create_access_cookie(&TestClaims {})
         .unwrap();  
 
     let mut req = TestRequest::default()
@@ -112,7 +110,7 @@ async fn valid_refresh_token() {
     let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
-                .create_refresh_token_cookie(&TestClaims {})
+                .create_refresh_cookie(&TestClaims {})
                 .unwrap(),
         )
         .to_srv_request();
@@ -157,7 +155,7 @@ async fn expired_token() {
     let mut req = TestRequest::default()
         .cookie(
             COOKIE_SIGNER
-                .create_access_token_cookie(&TestClaims {})
+                .create_access_cookie(&TestClaims {})
                 .unwrap(),
         )
         .to_srv_request();

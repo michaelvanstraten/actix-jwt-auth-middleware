@@ -1,6 +1,7 @@
-use super::AuthenticationMiddleware;
-use super::Authority;
+use crate::AuthenticationMiddleware;
+use crate::Authority;
 
+use std::future;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -13,7 +14,6 @@ use actix_web::dev::Transform;
 use actix_web::Error;
 use actix_web::FromRequest;
 use actix_web::Handler;
-use futures_util::future;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -37,7 +37,7 @@ use serde::Serialize;
 
    let authority = Authority::<User, _, _, _>::new()
        .refresh_authorizer(|| async move { Ok(()) })
-       .cookie_signer(Some(
+       .token_signer(Some(
            CookieSigner::new()
                .signing_key(key_pair.secret_key().clone())
                .algorithm(Ed25519)
@@ -93,7 +93,6 @@ impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
     for AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
-    S::Future: 'static,
     Claims: Serialize + DeserializeOwned + Clone + 'static,
     Algorithm: jwt_compact::Algorithm + Clone + 'static,
     Algorithm::SigningKey: Clone,
@@ -117,9 +116,9 @@ where
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(AuthenticationMiddleware::new(
+        future::ready(Ok(AuthenticationMiddleware::new(
             Rc::new(service),
             Arc::new(self.inner.clone()),
-        ))
+        )))
     }
 }

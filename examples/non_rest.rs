@@ -1,8 +1,8 @@
 use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
 use actix_jwt_auth_middleware::AuthResult;
 use actix_jwt_auth_middleware::Authority;
-use actix_jwt_auth_middleware::CookieSigner;
 use actix_jwt_auth_middleware::FromRequest;
+use actix_jwt_auth_middleware::TokenSigner;
 
 use actix_web::get;
 use actix_web::web;
@@ -24,15 +24,15 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
-    let authority = Authority::<User, _, _, _>::new()
+    let authority = Authority::<User, Ed25519, _, _>::new()
         .refresh_authorizer(|| async move { Ok(()) })
-        .cookie_signer(Some(
-            CookieSigner::new()
+        .token_signer(Some(
+            TokenSigner::new()
                 .signing_key(key_pair.secret_key().clone())
                 .algorithm(Ed25519)
                 .build()?,
         ))
-        .verifying_key(key_pair.public_key().clone())
+        .verifying_key(key_pair.public_key())
         .build()?;
 
     Ok(HttpServer::new(move || {
@@ -46,20 +46,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[get("/login")]
-async fn login(cookie_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
+async fn login(cookie_signer: web::Data<TokenSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
-        .cookie(cookie_signer.create_access_token_cookie(&user)?)
-        .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
+        .cookie(cookie_signer.create_access_cookie(&user)?)
+        .cookie(cookie_signer.create_refresh_cookie(&user)?)
         .body("You are now logged in"))
 }
 
+/*
+    Your Claim type can be extracted from within the wrapped services.
+
+    Note:    your Claim type has to implement the FromRequest trait
+             or you have to annotated with the FromRequest derive macro provided in this crate.
+
+*/
 #[get("/hello")]
-// Your Claim type can be extracted from within the wrapped services.
-//
-// Note:    your Claim type has to implement the FromRequest trait
-//          or you have to annotated with the FromRequest derive macro provided in this crate.
-//
 async fn hello(user: User) -> impl Responder {
     format!("Hello there, i see your user id is {}.", user.id)
 }

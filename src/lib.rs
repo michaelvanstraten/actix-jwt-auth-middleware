@@ -17,7 +17,6 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 - refresh authorizer function that has access to application state
 
 # Crate Features
-
 - `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
 
 This crate tightly integrates into the actix-web ecosystem,
@@ -59,14 +58,14 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
-    let cookie_signer = CookieSigner::new()
+    let token_signer = CookieSigner::new()
         .signing_key(key_pair.secret_key().clone())
         .algorithm(Ed25519)
         .build()?;
 
     let authority = Authority::<User, _, _, _>::new()
         .refresh_authorizer(|| async move { Ok(()) })
-        .cookie_signer(Some(cookie_signer.clone()))
+        .token_signer(Some(token_signer.clone()))
         .verifying_key(key_pair.public_key().clone())
         .build()?;
 
@@ -81,11 +80,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[get("/login")]
-async fn login(cookie_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
+async fn login(token_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
-        .cookie(cookie_signer.create_access_token_cookie(&user)?)
-        .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
+        .cookie(token_signer.create_access_cookie(&user)?)
+        .cookie(token_signer.create_refresh_cookie(&user)?)
         .body("You are now logged in"))
 }
 
@@ -94,31 +93,29 @@ async fn hello(user: User) -> impl Responder {
     format!("Hello there, i see your user id is {}.", user.id)
 }
 ```
-
 For more examples please referee to the `examples` directory.
 */
 
-#![allow(incomplete_features)]
+// #![warn(missing_docs)]
 #![cfg_attr(
     feature = "use_jwt_on_resource",
-    feature(return_position_impl_trait_in_trait)
+    feature(return_position_impl_trait_in_trait),
+    allow(incomplete_features)
 )]
+
+/// Convinience `UseJWT` traits
 pub mod use_jwt;
 
-mod authority;
-mod cookie_signer;
 mod errors;
-mod middleware;
+mod non_rest;
 mod rest;
-mod service;
 mod validate;
+mod token_signer;
+
+pub use errors::*;
+pub use non_rest::*;
+pub use rest::*;
+pub use token_signer::*;
 
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;
-
-pub use authority::*;
-pub use cookie_signer::*;
-pub use errors::*;
-pub use middleware::*;
-pub use rest::*;
-pub use service::*;

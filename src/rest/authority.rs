@@ -17,10 +17,10 @@ use serde::Serialize;
 /**
     Handles the authorization of requests for the middleware as well as refreshing the `access`/`refresh` token.
 
-    Please referee to the [`RestAuthorityBuilder`] for a detailed description of options available on this struct.
+    Please referee to the [`ApiAuthorityBuilder`] for a detailed description of options available on this struct.
 */
 #[derive(Builder, Clone)]
-pub struct RestAuthority<Claims, Algorithm>
+pub struct ApiAuthority<Claims, Algorithm>
 where
     Algorithm: jwt_compact::Algorithm,
     Algorithm::SigningKey: Clone,
@@ -29,37 +29,41 @@ where
     /**
         Depending on wether a [`CookieSigner`] is set, setting this field will have no affect.
 
-        Defaults to the value of the `access_token_name` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        Defaults to the value of the `access_token_name` field set on the `token_signer`, if the `token_signer` is not set,
         this defaults to `"access_token"`.
     */
     #[builder(default = "\"access_token\"")]
     pub(crate) access_token_name: &'static str,
+
     /**
         Depending on wether a [`CookieSigner`] is set, setting this field will have no affect.
 
-        Defaults to the value of the `refresh_token_name` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        Defaults to the value of the `refresh_token_name` field set on the `token_signer`, if the `token_signer` is not set,
         this defaults to `"refresh_token"`.
     */
     #[builder(default = "\"refresh_token\"")]
     pub(crate) refresh_token_name: &'static str,
+
     /**
         Key used to verify integrity of access and refresh token.
     */
     verifying_key: Algorithm::VerifyingKey,
+
     /**
         The Cryptographic signing algorithm used in the process of creation of access and refresh tokens.
 
         Please referee to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the `jwt-compact` crate
         for a comprehensive list of the supported algorithms.
 
-        Defaults to the value of the `algorithm` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        Defaults to the value of the `algorithm` field set on the `token_signer`, if the `token_signer` is not set,
         this field needs to be set.
     */
     algorithm: Algorithm,
+
     /**
         Used in the creating of the `token`, the current timestamp is taken from this, but please referee to the Structs documentation.
 
-        Defaults to the value of the `time_options` field set on the `cookie_signer`, if the `cookie_signer` is not set,
+        Defaults to the value of the `time_options` field set on the `token_signer`, if the `token_signer` is not set,
         this field needs to be set.
     */
     time_options: TimeOptions,
@@ -68,7 +72,7 @@ where
     _claims: PhantomData<Claims>,
 }
 
-impl<Claims, Algorithm> RestAuthority<Claims, Algorithm>
+impl<Claims, Algorithm> ApiAuthority<Claims, Algorithm>
 where
     Claims: Serialize + DeserializeOwned + Clone + 'static,
     Algorithm: jwt_compact::Algorithm + Clone,
@@ -78,8 +82,8 @@ where
     /**
         Returns a new [`RestAuthorityBuilder`]
     */
-    pub fn new() -> RestAuthorityBuilder<Claims, Algorithm> {
-        RestAuthorityBuilder::default()
+    pub fn new() -> ApiAuthorityBuilder<Claims, Algorithm> {
+        ApiAuthorityBuilder::default()
     }
 
     /**
@@ -88,14 +92,14 @@ where
         or deny the request by return a wrapped [`AuthError`].
     */
     pub async fn verify_service_request(&self, req: &mut ServiceRequest) -> AuthResult<()> {
-        match self.validate_bear_token(req.headers(), self.access_token_name) {
+        match self.validate_header_value(req.headers(), self.access_token_name) {
             Ok(access_token) => {
                 req.extensions_mut()
                     .insert(access_token.claims().custom.clone());
                 Ok(())
             }
             Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoToken) => {
-                match self.validate_bear_token(req.headers(), self.refresh_token_name) {
+                match self.validate_header_value(req.headers(), self.refresh_token_name) {
                     Ok(refresh_token) => {
                         let claims = refresh_token.claims().custom.clone();
                         req.extensions_mut().insert(claims.clone());
@@ -108,7 +112,7 @@ where
         }
     }
 
-    fn validate_bear_token(
+    fn validate_header_value(
         &self,
         header_map: &HeaderMap,
         header_key: &'static str,

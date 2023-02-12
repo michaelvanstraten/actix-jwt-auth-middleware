@@ -1,6 +1,8 @@
 use crate::Authority;
 
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -12,8 +14,6 @@ use actix_web::dev::ServiceResponse;
 use actix_web::Error;
 use actix_web::FromRequest;
 use actix_web::Handler;
-use futures_util::future::FutureExt as _;
-use futures_util::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -26,7 +26,7 @@ where
 {
     pub service: Rc<S>,
     pub inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
-    _claims: PhantomData<Claims>,
+    claims_marker: PhantomData<Claims>,
 }
 
 impl<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
@@ -43,7 +43,7 @@ where
         Self {
             service,
             inner,
-            _claims: PhantomData,
+            claims_marker: PhantomData,
         }
     }
 }
@@ -52,7 +52,6 @@ impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> Servi
     for AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
-    S::Future: 'static,
     Claims: Serialize + DeserializeOwned + Clone + 'static,
     Algorithm: jwt_compact::Algorithm + Clone + 'static,
     Algorithm::SigningKey: Clone,
@@ -64,7 +63,7 @@ where
 {
     type Response = ServiceResponse<Body>;
     type Error = S::Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     forward_ready!(service);
 
@@ -72,7 +71,7 @@ where
         let inner = Arc::clone(&self.inner);
         let service = Rc::clone(&self.service);
 
-        async move {
+        Box::pin(async move {
             match inner.verify_service_request(&mut req).await {
                 Ok(token_update) => service.call(req).await.and_then(|mut res| {
                     if let Some(token_update) = token_update {
@@ -87,7 +86,6 @@ where
                 }),
                 Err(err) => Err(err.into()),
             }
-        }
-        .boxed_local()
+        })
     }
 }

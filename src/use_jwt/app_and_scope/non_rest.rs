@@ -15,6 +15,9 @@ use serde::Serialize;
 
 macro_rules! impl_use_jwt_for {
     ($type:ident, $trait_name:ident) => {
+        /**
+            This trait gives the ability to call [`Self::use_jwt`] on a $type.
+        */
         pub trait $trait_name<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
         where
             Claims: Serialize + DeserializeOwned + Clone + 'static,
@@ -25,6 +28,7 @@ macro_rules! impl_use_jwt_for {
                 Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
             RefreshAuthorizerArgs: FromRequest + Clone + 'static,
         {
+            /// 
             fn use_jwt(
                 self,
                 authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
@@ -47,10 +51,10 @@ macro_rules! impl_use_jwt_for {
             fn use_jwt(
                 self,
                 authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
-                scope: Scope,
+            scope: Scope,
             ) -> Self {
-                if let Some(cookie_signer) = authority.cookie_signer() {
-                    self.app_data(Data::new(cookie_signer))
+                if let Some(token_signer) = authority.token_signer() {
+                    self.app_data(Data::new(token_signer))
                 } else {
                     self
                 }

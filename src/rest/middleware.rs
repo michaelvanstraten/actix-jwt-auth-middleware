@@ -1,6 +1,8 @@
-use crate::rest::RestAuthority;
+pub(crate) use crate::rest::ApiAuthority;
 
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -10,8 +12,6 @@ use actix_web::dev::Service;
 use actix_web::dev::ServiceRequest;
 use actix_web::dev::ServiceResponse;
 use actix_web::Error;
-use futures_util::future::FutureExt as _;
-use futures_util::future::LocalBoxFuture;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -23,7 +23,7 @@ where
     Algorithm::VerifyingKey: Clone,
 {
     pub service: Rc<S>,
-    pub inner: Arc<RestAuthority<Claims, Algorithm>>,
+    pub inner: Arc<ApiAuthority<Claims, Algorithm>>,
     _claims: PhantomData<Claims>,
 }
 
@@ -33,7 +33,7 @@ where
     Algorithm::SigningKey: Clone,
     Algorithm::VerifyingKey: Clone,
 {
-    pub fn new(service: Rc<S>, inner: Arc<RestAuthority<Claims, Algorithm>>) -> Self {
+    pub fn new(service: Rc<S>, inner: Arc<ApiAuthority<Claims, Algorithm>>) -> Self {
         Self {
             service,
             inner,
@@ -55,7 +55,7 @@ where
 {
     type Response = ServiceResponse<Body>;
     type Error = S::Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     forward_ready!(service);
 
@@ -63,12 +63,11 @@ where
         let inner = Arc::clone(&self.inner);
         let service = Rc::clone(&self.service);
 
-        async move {
+        Box::pin(async move {
             match inner.verify_service_request(&mut req).await {
                 Ok(()) => service.call(req).await.and_then(|res| Ok(res)),
                 Err(err) => Err(err.into()),
             }
-        }
-        .boxed_local()
+        })
     }
 }
