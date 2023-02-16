@@ -103,19 +103,16 @@ For more examples please referee to the `examples` directory.
     allow(incomplete_features)
 )]
 
-/// Convinience `UseJWT` traits
-pub mod use_jwt;
-
-mod errors;
-mod non_rest;
-mod rest;
-mod validate;
-mod token_signer;
-
-pub use errors::*;
-pub use non_rest::*;
-pub use rest::*;
-pub use token_signer::*;
-
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;
+/// Convinience `UseJWT` traits
+pub mod use_jwt;
+pub use errors::*;
+pub use middleware::*;
+pub use token_signer::*;
+
+mod errors;
+mod helper_macros;
+mod middleware;
+mod token_signer;
+mod validate;

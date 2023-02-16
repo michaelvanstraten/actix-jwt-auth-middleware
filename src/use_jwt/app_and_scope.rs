@@ -20,15 +20,14 @@ macro_rules! impl_use_jwt_for {
         */
         pub trait $trait_name<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
         where
-            Claims: Serialize + DeserializeOwned + Clone + 'static,
+            Claims: Serialize + DeserializeOwned + 'static,
             Algorithm: JWTAlgorithm + Clone,
             Algorithm::SigningKey: Clone,
-            Algorithm::VerifyingKey: Clone,
             RefreshAuthorizer:
-                Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
-            RefreshAuthorizerArgs: FromRequest + Clone + 'static,
+                Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
+            RefreshAuthorizerArgs: FromRequest + 'static,
         {
-            /// 
+            ///
             fn use_jwt(
                 self,
                 authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
@@ -51,7 +50,7 @@ macro_rules! impl_use_jwt_for {
             fn use_jwt(
                 self,
                 authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
-            scope: Scope,
+                scope: Scope,
             ) -> Self {
                 if let Some(token_signer) = authority.token_signer() {
                     self.app_data(Data::new(token_signer))

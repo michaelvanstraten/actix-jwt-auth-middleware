@@ -15,7 +15,7 @@ use jwt_compact::alg::Ed25519;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
+#[derive(Serialize, Deserialize, Debug, Clone, FromRequest)]
 struct User {
     id: u32,
 }
@@ -24,25 +24,29 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
-    let authority = Authority::<User, Ed25519, _, _>::new()
-        .refresh_authorizer(|| async move { Ok(()) })
-        .token_signer(Some(
-            TokenSigner::new()
-                .signing_key(key_pair.secret_key().clone())
-                .algorithm(Ed25519)
-                .build()?,
-        ))
-        .verifying_key(key_pair.public_key())
-        .build()?;
+    HttpServer::new(move || {
+        let authority = Authority::<User, Ed25519, _, _>::new()
+            .refresh_authorizer(|| async move { Ok(()) })
+            .token_signer(Some(
+                TokenSigner::new()
+                    .signing_key(key_pair.secret_key().clone())
+                    .algorithm(Ed25519)
+                    .build()
+                    .expect(""),
+            ))
+            .verifying_key(key_pair.public_key())
+            .build()
+            .expect("");
 
-    Ok(HttpServer::new(move || {
         App::new()
             .service(login)
-            .use_jwt(authority.clone(), web::scope("").service(hello))
+            .use_jwt(authority, web::scope("").service(hello))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
-    .await?)
+    .await?;
+
+    Ok(())
 }
 
 #[get("/login")]

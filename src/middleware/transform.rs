@@ -7,13 +7,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use actix_web::body::MessageBody;
-use actix_web::dev::Service;
-use actix_web::dev::ServiceRequest;
-use actix_web::dev::ServiceResponse;
-use actix_web::dev::Transform;
-use actix_web::Error;
-use actix_web::FromRequest;
-use actix_web::Handler;
+use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
+use actix_web::{Error, FromRequest, Handler};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -59,21 +54,19 @@ use serde::Serialize;
 */
 pub struct AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
-    Algorithm: jwt_compact::Algorithm,
+    Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
 {
-    inner: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
-    _claims: PhantomData<Claims>,
+    inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
+    claims_marker: PhantomData<Claims>,
 }
 
 impl<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
     AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     Claims: DeserializeOwned,
-    Algorithm: jwt_compact::Algorithm,
+    Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
 {
     /**
         returns a new AuthenticationService wrapping the [`Authority`]
@@ -82,8 +75,8 @@ where
         authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
     ) -> AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> {
         AuthenticationService {
-            inner: authority,
-            _claims: PhantomData,
+            inner: Arc::new(authority),
+            claims_marker: PhantomData,
         }
     }
 }
@@ -93,14 +86,12 @@ impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
     for AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
-    Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: jwt_compact::Algorithm + Clone + 'static,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
     Body: MessageBody,
-    RefreshAuthorizer:
-        Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
-    RefreshAuthorizerArgs: FromRequest + Clone + 'static,
+    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
+    RefreshAuthorizerArgs: FromRequest + 'static,
 {
     type Response = <AuthenticationMiddleware<
         S,
@@ -118,7 +109,7 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         future::ready(Ok(AuthenticationMiddleware::new(
             Rc::new(service),
-            Arc::new(self.inner.clone()),
+            Arc::clone(&self.inner),
         )))
     }
 }

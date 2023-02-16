@@ -46,10 +46,10 @@ j
     Please refer to the [`TokenSignerBuilder`] for a detailed description of Options available on this struct.
 */
 #[derive(Builder, Clone)]
+#[builder(pattern = "owned")]
 pub struct TokenSigner<Claims, Algorithm>
 where
     Algorithm: jwt_compact::Algorithm,
-    Algorithm::SigningKey: Clone,
 {
     /**
         The name of the future access tokens.
@@ -111,14 +111,13 @@ where
 impl<Claims, Algorithm> TokenSigner<Claims, Algorithm>
 where
     Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
-    Claims: Serialize + Clone,
+    Claims: Serialize,
 {
     /**
         Returns a new [`TokenSignerBuilder`]
     */
     pub fn new() -> TokenSignerBuilder<Claims, Algorithm> {
-        TokenSignerBuilder::default()
+        TokenSignerBuilder::create_empty()
     }
 
     /**

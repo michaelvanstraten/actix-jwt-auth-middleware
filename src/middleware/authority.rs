@@ -1,44 +1,18 @@
+use crate::helper_macros::{pull_from_token_signer, return_token_update};
 use crate::validate::validate_jwt;
-use crate::AuthError;
-use crate::AuthResult;
-use crate::TokenSigner;
+use crate::{AuthError, AuthResult, TokenSigner};
 
 use std::marker::PhantomData;
 
 use actix_web::cookie::Cookie;
 use actix_web::dev::ServiceRequest;
-use actix_web::FromRequest;
-use actix_web::Handler;
-use actix_web::HttpMessage;
+use actix_web::http::header::HeaderMap;
+use actix_web::{FromRequest, Handler, HttpMessage};
 use derive_builder::Builder;
-use jwt_compact::TimeOptions;
-use jwt_compact::Token;
-use jwt_compact::UntrustedToken;
 use jwt_compact::ValidationError::Expired as TokenExpired;
+use jwt_compact::{TimeOptions, Token, UntrustedToken};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-
-macro_rules! pull_from_token_signer {
-    ($self:ident ,$field_name:ident) => {
-        match $self.token_signer {
-            Some(Some(ref value)) => value.$field_name.clone(),
-            _ => {
-                return ::derive_builder::export::core::result::Result::Err(
-                    ::derive_builder::export::core::convert::Into::into(
-                        ::derive_builder::UninitializedFieldError::from(stringify!($field_name)),
-                    ),
-                );
-            }
-        }
-    };
-
-    ($self:ident, $field_name:ident, $alternative:expr) => {
-        match $self.token_signer {
-            Some(Some(ref value)) => value.$field_name.clone(),
-            _ => $alternative,
-        }
-    };
-}
 
 /*
     Struct used to signal to the middleware that a cookie needs to be updated
@@ -47,7 +21,7 @@ macro_rules! pull_from_token_signer {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct TokenUpdate {
-    pub(crate) auth_cookie: Option<Cookie<'static>>,
+    pub(crate) access_cookie: Option<Cookie<'static>>,
     pub(crate) refresh_cookie: Option<Cookie<'static>>,
 }
 
@@ -57,11 +31,11 @@ pub struct TokenUpdate {
     Please referee to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
 */
 #[derive(Builder, Clone)]
-pub struct Authority<Claims, Algorithm, RefreshAuthorizer, Args>
+#[builder(pattern = "owned")]
+pub struct Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
-    Algorithm: jwt_compact::Algorithm,
+    Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
 {
     /**
         The `refresh_authorizer` is called every time,
@@ -79,15 +53,6 @@ where
         the function. This allows you to perform Database Check etc...
     */
     refresh_authorizer: RefreshAuthorizer,
-    /**
-       Not Passing a [`TokenSigner`] struct will make your middleware unable to refresh the access token automatically.
-
-       You will have to provide a algorithm manually in this case because the Authority can not pull it from the `token_signer` field.
-
-       Please referee to the structs own documentation for more details.
-    */
-    #[builder(default = "None")]
-    token_signer: Option<TokenSigner<Claims, Algorithm>>,
     /**
         Depending on wether a [`TokenSigner`] is set, setting this field will have no affect.
 
@@ -141,35 +106,46 @@ where
     */
     #[builder(default = "pull_from_token_signer!(self, time_options)")]
     time_options: TimeOptions,
+    /**
+       Not Passing a [`TokenSigner`] struct will make your middleware unable to refresh the access token automatically.
+
+       You will have to provide a algorithm manually in this case because the Authority can not pull it from the `token_signer` field.
+
+       Please referee to the structs own documentation for more details.
+    */
+    #[builder(default = "None")]
+    token_signer: Option<TokenSigner<Claims, Algorithm>>,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
-    _claims: PhantomData<Claims>,
+    claims_marker: PhantomData<Claims>,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
-    _args: PhantomData<Args>,
+    args_marker: PhantomData<RefreshAuthorizerArgs>,
 }
 
-impl<Claims, Algorithm, RefreshAuthorizer, Args>
-    Authority<Claims, Algorithm, RefreshAuthorizer, Args>
+impl<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+    Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
 where
-    Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
-    RefreshAuthorizer: Handler<Args, Output = Result<(), actix_web::Error>> + Clone,
-    Args: FromRequest + Clone,
+    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
+    RefreshAuthorizerArgs: FromRequest,
 {
     /**
         Returns a new [`AuthorityBuilder`]
     */
-    pub fn new() -> AuthorityBuilder<Claims, Algorithm, RefreshAuthorizer, Args> {
+    pub fn new() -> AuthorityBuilder<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> {
         AuthorityBuilder::default()
     }
 
     /**
         Returns a Clone of the `token_signer` field on the Authority.
     */
-    pub fn token_signer(&self) -> Option<TokenSigner<Claims, Algorithm>> {
+    pub fn token_signer(&self) -> Option<TokenSigner<Claims, Algorithm>>
+    where
+        TokenSigner<Claims, Algorithm>: Clone,
+    {
         self.token_signer.clone()
     }
 
@@ -184,8 +160,8 @@ where
     ) -> AuthResult<Option<TokenUpdate>> {
         match self.validate_cookie(&req, self.access_token_name) {
             Ok(access_token) => {
-                req.extensions_mut()
-                    .insert(access_token.claims().custom.clone());
+                let (_, claims) = access_token.into_parts();
+                req.extensions_mut().insert(claims.custom);
                 Ok(None)
             }
             Err(AuthError::TokenValidation(TokenExpired) | AuthError::NoToken)
@@ -197,12 +173,13 @@ where
                     &self.token_signer,
                 ) {
                     (Ok(refresh_token), Some(token_signer)) => {
-                        let claims = refresh_token.claims().custom.clone();
-                        req.extensions_mut().insert(claims.clone());
-                        Ok(Some(TokenUpdate {
-                            auth_cookie: Some(token_signer.create_access_cookie(&claims)?),
-                            refresh_cookie: None,
-                        }))
+                        let (_, claims) = refresh_token.into_parts();
+
+                        let access_cookie = token_signer.create_access_cookie(&claims.custom)?;
+
+                        req.extensions_mut().insert(claims.custom);
+
+                        return_token_update!(access_cookie)
                     }
                     (Err(AuthError::TokenValidation(TokenExpired)), Some(token_signer))
                         if self.renew_refresh_token_automatically =>
@@ -217,11 +194,13 @@ where
                         .deserialize_claims_unchecked::<Claims>()
                         .expect("Claims has to be desirializeable to get to this point")
                         .custom;
-                        req.extensions_mut().insert(claims.clone());
-                        Ok(Some(TokenUpdate {
-                            auth_cookie: Some(token_signer.create_access_cookie(&claims)?),
-                            refresh_cookie: Some(token_signer.create_refresh_cookie(&claims)?),
-                        }))
+
+                        let access_cookie = token_signer.create_access_cookie(&claims)?;
+                        let refresh_cookie = token_signer.create_refresh_cookie(&claims)?;
+
+                        req.extensions_mut().insert(claims);
+
+                        return_token_update!(access_cookie, refresh_cookie)
                     }
                     (Ok(_), None) => Err(AuthError::NoCookieSigner),
                     (Err(err), _) => Err(err),
@@ -247,9 +226,30 @@ where
         }
     }
 
+    fn validate_header_value(
+        &self,
+        header_map: &HeaderMap,
+        header_key: &'static str,
+    ) -> AuthResult<Token<Claims>> {
+        match header_map.get(header_key) {
+            Some(header_value) => match header_value.to_str() {
+                Ok(token_value) => validate_jwt(
+                    &token_value,
+                    &self.algorithm,
+                    &self.verifying_key,
+                    &self.time_options,
+                ),
+                Err(_) => todo!(),
+            },
+            None => Err(AuthError::NoToken),
+        }
+    }
+
+    fn validate_query(&self) {}
+
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
         let (mut_req, mut payload) = req.parts_mut();
-        match Args::from_request(&mut_req, &mut payload).await {
+        match RefreshAuthorizerArgs::from_request(&mut_req, &mut payload).await {
             Ok(args) => self
                 .refresh_authorizer
                 .call(args)

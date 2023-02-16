@@ -18,7 +18,6 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 - refresh authorizer function that has access to application state
 
 ## Crate Features
-
 - `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
 
 This crate tightly integrates into the actix-web ecosystem,
@@ -60,26 +59,21 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
-    let cookie_signer = CookieSigner::new()
+    let token_signer = CookieSigner::new()
         .signing_key(key_pair.secret_key().clone())
         .algorithm(Ed25519)
         .build()?;
 
     let authority = Authority::<User, _, _, _>::new()
         .refresh_authorizer(|| async move { Ok(()) })
-        .cookie_signer(Some(cookie_signer.clone()))
+        .token_signer(Some(token_signer.clone()))
         .verifying_key(key_pair.public_key().clone())
         .build()?;
 
     Ok(HttpServer::new(move || {
         App::new()
             .service(login)
-            .app_data(Data::new(cookie_signer.clone()))
-            .service(
-                web::scope("")
-                    .service(hello)
-                    .use_jwt(authority.clone())
-            )
+            .use_jwt(authority.clone, web::scope("").service(hello))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
@@ -87,11 +81,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[get("/login")]
-async fn login(cookie_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
+async fn login(token_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
-        .cookie(cookie_signer.create_access_token_cookie(&user)?)
-        .cookie(cookie_signer.create_refresh_token_cookie(&user)?)
+        .cookie(token_signer.create_access_cookie(&user)?)
+        .cookie(token_signer.create_refresh_cookie(&user)?)
         .body("You are now logged in"))
 }
 
@@ -100,7 +94,6 @@ async fn hello(user: User) -> impl Responder {
     format!("Hello there, i see your user id is {}.", user.id)
 }
 ```
-
 For more examples please referee to the `examples` directory.
 
 License: MIT
