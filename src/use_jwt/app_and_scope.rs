@@ -1,55 +1,55 @@
-use crate::AuthenticationService;
-use crate::Authority;
+use crate::{AuthenticationService, Authority};
 
 use actix_web::dev::ServiceFactory;
 use actix_web::dev::ServiceRequest;
 use actix_web::web::Data;
 use actix_web::App;
-use actix_web::Error as ActixError;
+use actix_web::Error as ActixWebError;
 use actix_web::FromRequest;
 use actix_web::Handler;
 use actix_web::Scope;
-use jwt_compact::Algorithm as JWTAlgorithm;
+use jwt_compact::Algorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 macro_rules! impl_use_jwt_for {
     ($type:ident, $trait_name:ident) => {
         /**
-            This trait gives the ability to call [`Self::use_jwt`] on a $type.
+            This trait gives the ability to call [`Self::use_jwt`] on the implemented type.
         */
-        pub trait $trait_name<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+        pub trait $trait_name<Claims, Algo, ReAuth, Args>
         where
             Claims: Serialize + DeserializeOwned + 'static,
-            Algorithm: JWTAlgorithm + Clone,
-            Algorithm::SigningKey: Clone,
-            RefreshAuthorizer:
-                Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
-            RefreshAuthorizerArgs: FromRequest + 'static,
+            Algo: Algorithm + Clone,
+            Algo::SigningKey: Clone,
+            ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+            Args: FromRequest + 'static,
         {
-            ///
+            /**
+                Calls `wrap` on the `scope` will passing the `authority`.
+                Then it adds the `scope` as a service on `self`.
+
+                If there is a [`crate::TokenSigner`] set on the `authority`, it is clone it and adds it as app data on `self`.
+            */
             fn use_jwt(
                 self,
-                authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
+                authority: Authority<Claims, Algo, ReAuth, Args>,
                 scope: Scope,
             ) -> Self;
         }
 
-        impl<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs, T>
-            $trait_name<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> for $type<T>
+        impl<Claims, Algo, ReAuth, Args, T> $trait_name<Claims, Algo, ReAuth, Args> for $type<T>
         where
-            T: ServiceFactory<ServiceRequest, Config = (), Error = ActixError, InitError = ()>,
-            Claims: Serialize + DeserializeOwned + Clone + 'static,
-            Algorithm: JWTAlgorithm + Clone + 'static,
-            Algorithm::SigningKey: Clone,
-            Algorithm::VerifyingKey: Clone,
-            RefreshAuthorizer:
-                Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>> + Clone,
-            RefreshAuthorizerArgs: FromRequest + Clone + 'static,
+            T: ServiceFactory<ServiceRequest, Config = (), Error = ActixWebError, InitError = ()>,
+            Claims: Serialize + DeserializeOwned + 'static,
+            Algo: Algorithm + Clone + 'static,
+            Algo::SigningKey: Clone,
+            ReAuth: Handler<Args, Output = Result<(), ActixWebError>> + Clone,
+            Args: FromRequest + 'static,
         {
             fn use_jwt(
                 self,
-                authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
+                authority: Authority<Claims, Algo, ReAuth, Args>,
                 scope: Scope,
             ) -> Self {
                 if let Some(token_signer) = authority.token_signer() {

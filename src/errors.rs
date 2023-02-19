@@ -1,27 +1,23 @@
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
-use actix_web::HttpResponse;
-use actix_web::ResponseError;
-use jwt_compact::CreationError;
-use jwt_compact::ParseError;
-use jwt_compact::ValidationError;
+use actix_web::{Error as ActixWebError, HttpResponse, ResponseError};
+use jwt_compact::{CreationError, ParseError, ValidationError};
 
 pub type AuthResult<T> = Result<T, AuthError>;
 
 /**
     Crate wide error type
 
-    if #[cfg(debug_assertions)] is true 
-    the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation) 
+    if #[cfg(debug_assertions)] is true
+    the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation)
     are in included in the error message.
 */
 #[derive(Debug)]
 pub enum AuthError {
-    /// 
-    Internal(actix_web::Error),
+    Internal(ActixWebError),
+    RefreshAuthorizerDenied(ActixWebError),
     NoToken,
-    NoCookieSigner,
-    RefreshAuthorizerDenied(actix_web::Error),
+    NoTokenSigner,
     TokenCreation(CreationError),
     TokenParse(ParseError),
     TokenValidation(ValidationError),
@@ -68,14 +64,14 @@ impl std::fmt::Display for AuthError {
             AuthError::TokenParse(_) | AuthError::TokenValidation(_) => {
                 f.write_str("An error occurred, the provided jwt could not be processed.")
             }
-            AuthError::Internal(_) | AuthError::NoCookieSigner | AuthError::TokenCreation(_) => {
+            AuthError::Internal(_) | AuthError::NoTokenSigner | AuthError::TokenCreation(_) => {
                 f.write_str("An internal error occurred. Please try again later.")
             }
         }
         #[cfg(debug_assertions)]
         match self {
             AuthError::NoToken => f.write_str(NO_TOKEN_MESSAGE),
-            AuthError::NoCookieSigner => f.write_str(
+            AuthError::NoTokenSigner => f.write_str(
                 "An error occurred because no CookieSigner was configured on the Authority struct.",
             ),
             AuthError::TokenCreation(err) => f.write_fmt(format_args!(
@@ -97,7 +93,7 @@ impl std::fmt::Display for AuthError {
 impl ResponseError for AuthError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AuthError::TokenCreation(_) | AuthError::NoCookieSigner => {
+            AuthError::TokenCreation(_) | AuthError::NoTokenSigner => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,

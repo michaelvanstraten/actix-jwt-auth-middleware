@@ -7,10 +7,10 @@ use std::marker::PhantomData;
 use actix_web::cookie::Cookie;
 use actix_web::dev::ServiceRequest;
 use actix_web::http::header::HeaderMap;
-use actix_web::{FromRequest, Handler, HttpMessage};
+use actix_web::{Error as ActixWebError, FromRequest, Handler, HttpMessage};
 use derive_builder::Builder;
 use jwt_compact::ValidationError::Expired as TokenExpired;
-use jwt_compact::{TimeOptions, Token, UntrustedToken};
+use jwt_compact::{Algorithm, TimeOptions, Token, UntrustedToken};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -26,35 +26,55 @@ pub struct TokenUpdate {
 }
 
 /**
-    Handles the authorization of requests for the middleware as well as refreshing the `access`/`refresh` token.
+    The [`Authority`] handles the process of authorizing service requests in this crate.
 
-    Please referee to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
+    It holds many configuration options to enable/disable specific authorization methods as well as the automatic renewal of JWTs.
+    # Example
+    ```rust
+    # use actix_jwt_auth_middleware::{Authority, TokenSigner};
+    # use jwt_compact::alg::Ed25519;
+    # use exonum_crypto::KeyPair;
+    # let key_pair = KeyPair::random();
+    let authority = Authority::<(), Ed25519, _, _>::new()
+        .refresh_authorizer(|| async move { Ok(()) })
+        .token_signer(Some(
+            TokenSigner::new()
+                .signing_key(key_pair.secret_key().clone())
+                .algorithm(Ed25519)
+                .build()
+                .expect(""),
+        ))
+        .verifying_key(key_pair.public_key())
+        .build()
+        .unwrap();
+    ```
+    Please refer to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
 */
 #[derive(Builder, Clone)]
 #[builder(pattern = "owned")]
-pub struct Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+pub struct Authority<Claims, Algo, ReAuth, Args>
 where
-    Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
 {
     /**
         The `refresh_authorizer` is called every time,
         when a client with an expired access token but a valid refresh token
-        tries to fetch a resource protected by the jwt middleware.
+        tries to fetch a resource protected by the JWT middleware.
 
         By returning the `Ok` variant your grand the client permission to get a new access token.
         In contrast, by returning the `Err` variant you deny the request.
-        The [`actix_web::Error`](actix_web::Error) returned in this case
-        will be passed along as a wrapped internal [`AuthError`] back to the client
-        (There are options to remap this [actix-error-mapper]).
+        The [`actix_web::Error`] returned in this case
+        will be passed along as a wrapped [`AuthError::RefreshAuthorizerDenied`] back to the client
+        (There are options to remap this, for example this crate: [`actix-error-mapper-middleware`](https://github.com/michaelvanstraten/actix-error-mapper-middleware)).
 
         Since `refresh_authorizer` has to implement the [`Handler`](actix_web::dev::Handler) trait,
         you are able to access your regular application an request state from within
         the function. This allows you to perform Database Check etc...
     */
-    refresh_authorizer: RefreshAuthorizer,
+    refresh_authorizer: ReAuth,
     /**
-        Depending on wether a [`TokenSigner`] is set, setting this field will have no affect.
+        Depending on whether a [`TokenSigner`] is set, setting this field will have no affect.
 
         Defaults to the value of the `access_token_name` field set on the `token_signer`, if the `token_signer` is not set,
         this defaults to `"access_token"`.
@@ -62,14 +82,14 @@ where
     #[builder(default = "pull_from_token_signer!(self, access_token_name, \"access_token\")")]
     pub(crate) access_token_name: &'static str,
     /**
-        Self explanatory, if set to false the clients access token will not be automatically refreshed.
+        If set to false the clients access token will not be automatically refreshed.
 
         Defaults to `true`
     */
     #[builder(default = "true")]
     renew_access_token_automatically: bool,
     /**
-        Depending on wether a [`TokenSigner`] is set, setting this field will have no affect.
+        Depending on whether a [`TokenSigner`] is set, setting this field will have no affect.
 
         Defaults to the value of the `refresh_token_name` field set on the `token_signer`,
         if the `token_signer` is not set, this defaults to `"refresh_token"`.
@@ -87,7 +107,7 @@ where
     /**
         Key used to verify integrity of access and refresh token.
     */
-    verifying_key: Algorithm::VerifyingKey,
+    verifying_key: Algo::VerifyingKey,
     /**
         The Cryptographic signing algorithm used in the process of creation of access and refresh tokens.
 
@@ -97,9 +117,9 @@ where
         this field needs to be set.
     */
     #[builder(default = "pull_from_token_signer!(self, algorithm)")]
-    algorithm: Algorithm,
+    algorithm: Algo,
     /**
-        Used in the creating of the `token`, the current timestamp is taken from this, but please referee to the Structs documentation.
+        Used in the creating of the `token`, the current time stamp is taken from this, but please referee to the Structs documentation.
 
         Defaults to the value of the `time_options` field set on the `token_signer`, if the `token_signer` is not set,
         this field needs to be set.
@@ -114,44 +134,43 @@ where
        Please referee to the structs own documentation for more details.
     */
     #[builder(default = "None")]
-    token_signer: Option<TokenSigner<Claims, Algorithm>>,
+    token_signer: Option<TokenSigner<Claims, Algo>>,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
     claims_marker: PhantomData<Claims>,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
-    args_marker: PhantomData<RefreshAuthorizerArgs>,
+    args_marker: PhantomData<Args>,
 }
 
-impl<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
-    Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+impl<Claims, Algo, ReAuth, Args> Authority<Claims, Algo, ReAuth, Args>
 where
     Claims: Serialize + DeserializeOwned + 'static,
-    Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
-    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
-    RefreshAuthorizerArgs: FromRequest,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest,
 {
     /**
         Returns a new [`AuthorityBuilder`]
     */
-    pub fn new() -> AuthorityBuilder<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> {
+    pub fn new() -> AuthorityBuilder<Claims, Algo, ReAuth, Args> {
         AuthorityBuilder::default()
     }
 
     /**
         Returns a Clone of the `token_signer` field on the Authority.
     */
-    pub fn token_signer(&self) -> Option<TokenSigner<Claims, Algorithm>>
+    pub fn token_signer(&self) -> Option<TokenSigner<Claims, Algo>>
     where
-        TokenSigner<Claims, Algorithm>: Clone,
+        TokenSigner<Claims, Algo>: Clone,
     {
         self.token_signer.clone()
     }
 
     /**
         Use by the [`crate::AuthenticationMiddleware`]
-        in oder to verify an incoming request and ether hand it of to protected services
+        in order to verify an incoming request and ether hand it of to protected services
         or deny the request by return a wrapped [`AuthError`].
     */
     pub async fn verify_service_request(
@@ -184,16 +203,11 @@ where
                     (Err(AuthError::TokenValidation(TokenExpired)), Some(token_signer))
                         if self.renew_refresh_token_automatically =>
                     {
-                        let claims = UntrustedToken::new(
-                            req
-                                .cookie(self.refresh_token_name)
+                        let claims = extract_claims_unsafe(
+                            req.cookie(self.refresh_token_name)
                                 .expect("Cookie has to be set in oder to get to this point")
                                 .value(),
-                        )
-                        .expect("UntrustedToken token has to be parseable fro, cookie value in order to get to here")
-                        .deserialize_claims_unchecked::<Claims>()
-                        .expect("Claims has to be desirializeable to get to this point")
-                        .custom;
+                        );
 
                         let access_cookie = token_signer.create_access_cookie(&claims)?;
                         let refresh_cookie = token_signer.create_refresh_cookie(&claims)?;
@@ -202,7 +216,7 @@ where
 
                         return_token_update!(access_cookie, refresh_cookie)
                     }
-                    (Ok(_), None) => Err(AuthError::NoCookieSigner),
+                    (Ok(_), None) => Err(AuthError::NoTokenSigner),
                     (Err(err), _) => Err(err),
                 }
             }
@@ -239,7 +253,7 @@ where
                     &self.verifying_key,
                     &self.time_options,
                 ),
-                Err(_) => todo!(),
+                Err(_) => Err(AuthError::NoToken),
             },
             None => Err(AuthError::NoToken),
         }
@@ -249,13 +263,27 @@ where
 
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
         let (mut_req, mut payload) = req.parts_mut();
-        match RefreshAuthorizerArgs::from_request(&mut_req, &mut payload).await {
+        match Args::from_request(&mut_req, &mut payload).await {
             Ok(args) => self
                 .refresh_authorizer
                 .call(args)
                 .await
-                .map_err(|err| AuthError::RefreshAuthorizerDenied(err)),
+                .map_err(|err| AuthError::RefreshAuthorizerDenied(err.into())),
             Err(err) => Err(AuthError::Internal(err.into())),
         }
     }
+}
+
+fn extract_claims_unsafe<'a, S, Claims>(token_value: &'a S) -> Claims
+where
+    S: AsRef<str> + ?Sized,
+    Claims: DeserializeOwned,
+{
+    UntrustedToken::new(token_value)
+        .expect(
+            "UntrustedToken token has to be parseable fro, cookie value in order to get to here",
+        )
+        .deserialize_claims_unchecked::<Claims>()
+        .expect("Claims has to be desirializeable to get to this point")
+        .custom
 }

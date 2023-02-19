@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use actix_web::body::MessageBody;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::{Error, FromRequest, Handler};
+use actix_web::{Error as ActixWebError, FromRequest, Handler};
+use jwt_compact::Algorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -17,7 +18,7 @@ use serde::Serialize;
 
    ## Example
    ```rust
-   use actix_jwt_auth_middleware::{CookieSigner, Authority, AuthenticationService};
+   use actix_jwt_auth_middleware::{TokenSigner, Authority, AuthenticationService};
    use actix_web::{web, App};
    use serde::{Serialize, Deserialize};
    use exonum_crypto::KeyPair;
@@ -33,7 +34,7 @@ use serde::Serialize;
    let authority = Authority::<User, _, _, _>::new()
        .refresh_authorizer(|| async move { Ok(()) })
        .token_signer(Some(
-           CookieSigner::new()
+           TokenSigner::new()
                .signing_key(key_pair.secret_key().clone())
                .algorithm(Ed25519)
                .build()
@@ -52,28 +53,27 @@ use serde::Serialize;
         );
    ```
 */
-pub struct AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+pub struct AuthenticationService<Claims, Algo, ReAuth, Args>
 where
-    Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
 {
-    inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
+    inner: Arc<Authority<Claims, Algo, ReAuth, Args>>,
     claims_marker: PhantomData<Claims>,
 }
 
-impl<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
-    AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+impl<Claims, Algo, ReAuth, Args> AuthenticationService<Claims, Algo, ReAuth, Args>
 where
     Claims: DeserializeOwned,
-    Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
 {
     /**
         returns a new AuthenticationService wrapping the [`Authority`]
     */
     pub fn new(
-        authority: Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>,
-    ) -> AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> {
+        authority: Authority<Claims, Algo, ReAuth, Args>,
+    ) -> AuthenticationService<Claims, Algo, ReAuth, Args> {
         AuthenticationService {
             inner: Arc::new(authority),
             claims_marker: PhantomData,
@@ -81,28 +81,22 @@ where
     }
 }
 
-impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
-    Transform<S, ServiceRequest>
-    for AuthenticationService<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+impl<S, Body, Claims, Algo, ReAuth, Args> Transform<S, ServiceRequest>
+    for AuthenticationService<Claims, Algo, ReAuth, Args>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
+    S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = ActixWebError> + 'static,
     Claims: Serialize + DeserializeOwned + 'static,
-    Algorithm: jwt_compact::Algorithm + Clone + 'static,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone + 'static,
+    Algo::SigningKey: Clone,
     Body: MessageBody,
-    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
-    RefreshAuthorizerArgs: FromRequest + 'static,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest + 'static,
 {
-    type Response = <AuthenticationMiddleware<
-        S,
-        Claims,
-        Algorithm,
-        RefreshAuthorizer,
-        RefreshAuthorizerArgs,
-    > as Service<ServiceRequest>>::Response;
-    type Error = Error;
-    type Transform =
-        AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>;
+    type Response = <AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args> as Service<
+        ServiceRequest,
+    >>::Response;
+    type Error = ActixWebError;
+    type Transform = AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>;
     type InitError = ();
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 

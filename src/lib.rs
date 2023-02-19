@@ -23,6 +23,9 @@ This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
 
 ```rust
+# use actix_jwt_auth_middleware::{FromRequest};
+# use actix_web::{get, Responder};
+# use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, FromRequest)]
 struct UserClaims {
     id: u32,
@@ -46,9 +49,13 @@ For this your custom claim type has to implement the [`FromRequest`](actix_web::
 or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
 # Simple Example
-
-```rust
-
+```rust no_run
+# use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
+# use actix_jwt_auth_middleware::{AuthResult, Authority, FromRequest, TokenSigner};
+# use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+# use exonum_crypto::KeyPair;
+# use jwt_compact::alg::Ed25519;
+# use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
 struct User {
     id: u32,
@@ -58,29 +65,33 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
-    let token_signer = CookieSigner::new()
-        .signing_key(key_pair.secret_key().clone())
-        .algorithm(Ed25519)
-        .build()?;
+    HttpServer::new(move || {
+        let authority = Authority::<User, Ed25519, _, _>::new()
+            .refresh_authorizer(|| async move { Ok(()) })
+            .token_signer(Some(
+                TokenSigner::new()
+                    .signing_key(key_pair.secret_key().clone())
+                    .algorithm(Ed25519)
+                    .build()
+                    .expect(""),
+            ))
+            .verifying_key(key_pair.public_key())
+            .build()
+            .expect("");
 
-    let authority = Authority::<User, _, _, _>::new()
-        .refresh_authorizer(|| async move { Ok(()) })
-        .token_signer(Some(token_signer.clone()))
-        .verifying_key(key_pair.public_key().clone())
-        .build()?;
-
-    Ok(HttpServer::new(move || {
         App::new()
             .service(login)
-            .use_jwt(authority.clone, web::scope("").service(hello))
+            .use_jwt(authority, web::scope("").service(hello))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
-    .await?)
+    .await?;
+
+    Ok(())
 }
 
 #[get("/login")]
-async fn login(token_signer: web::Data<CookieSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
+async fn login(token_signer: web::Data<TokenSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
         .cookie(token_signer.create_access_cookie(&user)?)
@@ -96,7 +107,6 @@ async fn hello(user: User) -> impl Responder {
 For more examples please referee to the `examples` directory.
 */
 
-// #![warn(missing_docs)]
 #![cfg_attr(
     feature = "use_jwt_on_resource",
     feature(return_position_impl_trait_in_trait),
@@ -107,10 +117,12 @@ For more examples please referee to the `examples` directory.
 pub use actix_jwt_auth_middleware_derive::FromRequest;
 /// Convinience `UseJWT` traits
 pub mod use_jwt;
+pub use authority::*;
 pub use errors::*;
 pub use middleware::*;
 pub use token_signer::*;
 
+mod authority;
 mod errors;
 mod helper_macros;
 mod middleware;

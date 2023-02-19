@@ -8,31 +8,29 @@ use std::sync::Arc;
 
 use actix_web::body::MessageBody;
 use actix_web::dev::{forward_ready, Service, ServiceRequest, ServiceResponse};
-use actix_web::{Error, FromRequest, Handler};
+use actix_web::{Error as ActixWebError, FromRequest, Handler};
+use jwt_compact::Algorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 #[doc(hidden)]
-pub struct AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+pub struct AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>
 where
-    Algorithm: jwt_compact::Algorithm + Clone,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
 {
     pub service: Rc<S>,
-    pub inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
+    pub inner: Arc<Authority<Claims, Algo, ReAuth, Args>>,
     claims_marker: PhantomData<Claims>,
 }
 
-impl<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
-    AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+impl<S, Claims, Algorithm, ReAuth, Args>
+    AuthenticationMiddleware<S, Claims, Algorithm, ReAuth, Args>
 where
     Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
 {
-    pub fn new(
-        service: Rc<S>,
-        inner: Arc<Authority<Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>>,
-    ) -> Self {
+    pub fn new(service: Rc<S>, inner: Arc<Authority<Claims, Algorithm, ReAuth, Args>>) -> Self {
         Self {
             service,
             inner,
@@ -41,16 +39,16 @@ where
     }
 }
 
-impl<S, Body, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs> Service<ServiceRequest>
-    for AuthenticationMiddleware<S, Claims, Algorithm, RefreshAuthorizer, RefreshAuthorizerArgs>
+impl<S, Body, Claims, Algo, ReAuth, Args> Service<ServiceRequest>
+    for AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = Error> + 'static,
+    S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = ActixWebError> + 'static,
     Claims: Serialize + DeserializeOwned + 'static,
-    Algorithm: jwt_compact::Algorithm + Clone + 'static,
-    Algorithm::SigningKey: Clone,
+    Algo: Algorithm + Clone + 'static,
+    Algo::SigningKey: Clone,
     Body: MessageBody,
-    RefreshAuthorizer: Handler<RefreshAuthorizerArgs, Output = Result<(), actix_web::Error>>,
-    RefreshAuthorizerArgs: FromRequest + 'static,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest + 'static,
 {
     type Response = ServiceResponse<Body>;
     type Error = S::Error;

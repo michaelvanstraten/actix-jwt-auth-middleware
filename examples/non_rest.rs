@@ -1,19 +1,10 @@
 use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
-use actix_jwt_auth_middleware::AuthResult;
-use actix_jwt_auth_middleware::Authority;
-use actix_jwt_auth_middleware::FromRequest;
-use actix_jwt_auth_middleware::TokenSigner;
+use actix_jwt_auth_middleware::{AuthResult, Authority, FromRequest, TokenSigner};
 
-use actix_web::get;
-use actix_web::web;
-use actix_web::App;
-use actix_web::HttpResponse;
-use actix_web::HttpServer;
-use actix_web::Responder;
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use exonum_crypto::KeyPair;
 use jwt_compact::alg::Ed25519;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, FromRequest)]
 struct User {

@@ -1,5 +1,4 @@
-use crate::AuthError;
-use crate::AuthResult;
+use crate::{AuthError, AuthResult};
 
 use std::marker::PhantomData;
 
@@ -7,21 +6,21 @@ use actix_web::cookie::Cookie;
 use actix_web::http::header::HeaderValue;
 use chrono::Duration;
 use derive_builder::Builder;
-use jwt_compact::{AlgorithmExt, Claims as TokenClaims, Header, TimeOptions};
+use jwt_compact::{Algorithm, AlgorithmExt, Claims as TokenClaims, Header, TimeOptions};
 use serde::Serialize;
 
 /**
     The [`TokenSigner`] is a convenience struct,
-    which holds configuration values as well as a private key for generation JSON web tokens.
+    which holds configuration values as well as a private key for generation JWTs.
 
-    For example, the [`crate::Authority`] uses it to automatically refresh the access/refresh token.
-
-    ## Example
+    For example, the [`crate::Authority`] uses it to automatically refresh the `access`/`refresh` token.
+    # Example
     ```rust
-    # use actix_jwt_auth_middleware::Signer;
+    # use actix_jwt_auth_middleware::{TokenSigner, AuthError};
     # use serde::Serialize;
     # use exonum_crypto::KeyPair;
     # use jwt_compact::{alg::Ed25519, TimeOptions};
+    # use chrono::Duration;
     #[derive(Serialize, Clone)]
     struct User {
         id: u32
@@ -37,24 +36,27 @@ use serde::Serialize;
         // generated tokens can still be used up to 10 seconds after they expired
         .time_options(TimeOptions::from_leeway(Duration::seconds(10)))
         .algorithm(Ed25519)
-        .build()?;
-j
+        .build().unwrap();
+
     let cookie = token_signer.create_access_cookie(&User{
         id: 1
     })?;
+    # Ok::<(), AuthError>(())
     ```
     Please refer to the [`TokenSignerBuilder`] for a detailed description of Options available on this struct.
 */
-#[derive(Builder, Clone)]
+#[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct TokenSigner<Claims, Algorithm>
+pub struct TokenSigner<Claims, Algo>
 where
-    Algorithm: jwt_compact::Algorithm,
+    Algo: Algorithm,
 {
     /**
         The name of the future access tokens.
 
-        For example, the name of the cookie generated in [`Self::create_access_cookie`].
+        For example, the name of the cookie generated in [`TokenSigner::create_access_cookie`].
+
+        Defaults to `"access_token"`
     */
     #[builder(default = "\"access_token\"")]
     pub(crate) access_token_name: &'static str,
@@ -65,6 +67,13 @@ where
     */
     #[builder(default = "Duration::seconds(60)")]
     access_token_lifetime: Duration,
+    /**
+        The name of the future refresh tokens.
+
+        For example, the name of the cookie generated in [`TokenSigner::create_refresh_cookie`].
+
+        Defaults to `"refresh_token"`
+    */
     #[builder(default = "\"refresh_token\"")]
     pub(crate) refresh_token_name: &'static str,
     /**
@@ -89,11 +98,11 @@ where
         Please referee to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the `jwt-compact` crate
         for a comprehensive list of the supported algorithms.
     */
-    pub(crate) algorithm: Algorithm,
+    pub(crate) algorithm: Algo,
     /**
         Key used to sign tokens.
     */
-    signing_key: Algorithm::SigningKey,
+    signing_key: Algo::SigningKey,
     /**
         Used in the creating of the `token`, the current time stamp is taken from this.
 
@@ -171,7 +180,7 @@ where
     }
 
     /**
-        Creates a Bearer HeaderValue wrapping a token.
+        Creates a Bearer [`HeaderValue`] wrapping a token.
 
         This value is typically set as the Authorization header, also known as Bearer Authentication.
 
@@ -242,5 +251,26 @@ where
         self.algorithm
             .token(self.header.clone(), &token_claims, &self.signing_key)
             .map_err(|err| AuthError::TokenCreation(err))
+    }
+}
+
+impl<Claims, Algo: Clone> Clone for TokenSigner<Claims, Algo>
+where
+    Algo: Algorithm,
+    Algo::SigningKey: Clone,
+{
+    #[inline]
+    fn clone(&self) -> TokenSigner<Claims, Algo> {
+        TokenSigner {
+            access_token_name: Clone::clone(&self.access_token_name),
+            access_token_lifetime: Clone::clone(&self.access_token_lifetime),
+            refresh_token_name: Clone::clone(&self.refresh_token_name),
+            refresh_token_lifetime: Clone::clone(&self.refresh_token_lifetime),
+            header: Clone::clone(&self.header),
+            algorithm: Clone::clone(&self.algorithm),
+            signing_key: Clone::clone(&self.signing_key),
+            time_options: Clone::clone(&self.time_options),
+            claims_marker: Clone::clone(&self.claims_marker),
+        }
     }
 }

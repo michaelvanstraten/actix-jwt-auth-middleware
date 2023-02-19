@@ -1,62 +1,54 @@
 use crate::AuthenticationService;
 use crate::Authority;
 
-use actix_web::dev::ServiceFactory;
-use actix_web::dev::ServiceRequest;
-use actix_web::dev::ServiceResponse;
-use actix_web::Error as ActixError;
-use actix_web::FromRequest;
-use actix_web::Handler;
-use actix_web::Resource;
+use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
+use actix_web::{Error as ActixWebError, FromRequest, Handler, Resource};
 use jwt_compact::Algorithm as JWTAlgorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub trait JWTOnResource<Claims, Algorithm, ReAuthorizer, Args>
+pub trait JWTOnResource<Claims, Algorithm, ReAuth, Args>
 where
-    Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: JWTAlgorithm + Clone,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
-    ReAuthorizer: Handler<Args, Output = Result<(), ActixError>> + Clone,
-    Args: FromRequest + Clone,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest,
 {
     fn use_jwt(
         self,
-        authority: Authority<Claims, Algorithm, ReAuthorizer, Args>,
+        authority: Authority<Claims, Algorithm, ReAuth, Args>,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
             Response = ServiceResponse,
-            Error = ActixError,
+            Error = ActixWebError,
             InitError = (),
         >,
     >;
 }
 
-impl<Claims, Algorithm, ReAuthorizer, Args> JWTOnResource<Claims, Algorithm, ReAuthorizer, Args>
-    for Resource
+impl<Claims, Algorithm, ReAuth, Args> JWTOnResource<Claims, Algorithm, ReAuth, Args> for Resource
 where
-    Claims: Serialize + DeserializeOwned + Clone + 'static,
+    Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: JWTAlgorithm + Clone + 'static,
     Algorithm::SigningKey: Clone,
-    Algorithm::VerifyingKey: Clone,
-    ReAuthorizer: Handler<Args, Output = Result<(), ActixError>> + Clone,
-    Args: FromRequest + Clone + 'static,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest + 'static,
 {
     fn use_jwt(
         self,
-        authority: Authority<Claims, Algorithm, ReAuthorizer, Args>,
+        authority: Authority<Claims, Algorithm, ReAuth, Args>,
     ) -> Resource<
         impl ServiceFactory<
             ServiceRequest,
             Config = (),
             Response = ServiceResponse,
-            Error = ActixError,
+            Error = ActixWebError,
             InitError = (),
         >,
     > {
-        self.wrap(AuthenticationService::new(authority.clone()))
+        self.wrap(AuthenticationService::new(authority))
     }
 }

@@ -1,21 +1,17 @@
-use crate::AuthError;
-use crate::AuthResult;
+use crate::{AuthError, AuthResult};
 
-use jwt_compact::AlgorithmExt;
-use jwt_compact::TimeOptions;
-use jwt_compact::Token;
-use jwt_compact::UntrustedToken;
+use jwt_compact::{Algorithm, AlgorithmExt, TimeOptions, Token, UntrustedToken};
 use serde::de::DeserializeOwned;
 
-pub(crate) fn validate_jwt<T, Algorithm, Claims>(
+pub(crate) fn validate_jwt<T, Algo, Claims>(
     value: &T,
-    algorithm: &Algorithm,
-    verifying_key: &Algorithm::VerifyingKey,
+    algorithm: &Algo,
+    verifying_key: &Algo::VerifyingKey,
     time_options: &TimeOptions,
 ) -> AuthResult<Token<Claims>>
 where
     T: AsRef<str>,
-    Algorithm: jwt_compact::Algorithm,
+    Algo: Algorithm,
     Claims: DeserializeOwned,
 {
     match UntrustedToken::new(&value) {
