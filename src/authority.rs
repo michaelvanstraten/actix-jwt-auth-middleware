@@ -31,7 +31,7 @@ pub struct TokenUpdate {
     It holds many configuration options to enable/disable specific authorization methods as well as the automatic renewal of JWTs.
     # Example
     ```rust
-    # use actix_jwt_auth_middleware::{Authority, TokenSigner};
+    # use actix_jwt_auth_middleware::{Authority, TokenSigner, AuthorityBuilderError};
     # use jwt_compact::alg::Ed25519;
     # use exonum_crypto::KeyPair;
     # let key_pair = KeyPair::random();
@@ -45,8 +45,8 @@ pub struct TokenUpdate {
                 .expect(""),
         ))
         .verifying_key(key_pair.public_key())
-        .build()
-        .unwrap();
+        .build()?;
+    # Ok::<(), AuthorityBuilderError>(())
     ```
     Please refer to the [`AuthorityBuilder`] for a detailed description of options available on this struct.
 */

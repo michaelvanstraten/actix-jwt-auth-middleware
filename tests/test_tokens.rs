@@ -40,29 +40,6 @@ async fn valid_access_token() {
     assert!(authority.verify_service_request(&mut req).await.is_ok())
 }
 
-// #[actix_web::test]
-// async fn valid_access_token_header() {
-//     let authority: RestAuthorizer<TestClaims, _, _, _> = Authority::new()
-//         .algorithm(Ed25519)
-//         .verifying_key(KEY_PAIR.public_key())
-//         .time_options(*TIME_OPTIONS)
-//         .build()
-//         .unwrap();
-//
-//     let cookie =  COOKIE_SIGNER
-//         .create_access_cookie(&TestClaims {})
-//         .unwrap();
-//
-//     let mut req = TestRequest::default()
-//         .insert_header((
-//             cookie.name(),
-//                 cookie.value(),
-//         ))
-//         .to_srv_request();
-//
-//     assert!(authority.verify_service_request(&mut req).await.is_ok())
-// }
-
 #[actix_web::test]
 async fn deactivated_access_token_header() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()

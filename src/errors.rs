@@ -8,7 +8,7 @@ pub type AuthResult<T> = Result<T, AuthError>;
 /**
     Crate wide error type
 
-    if #[cfg(debug_assertions)] is true
+    if ``#[cfg(debug_assertions)]` is true
     the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation)
     are in included in the error message.
 */
