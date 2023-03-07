@@ -20,7 +20,17 @@ macro_rules! pull_from_token_signer {
     };
 }
 
-macro_rules! return_token_update {
+macro_rules! continue_if_matches_err_variant {
+    ($match:expr, $variant: path) => {
+        match $match {
+            Ok(value) => return Ok(value),
+            Err($variant) => (),
+            Err(err) => return Err(err),
+        }
+    };
+}
+
+macro_rules! make_token_update {
     () => {
         Ok(Some(TokenUpdate {
             access_cookie: None,
@@ -43,5 +53,6 @@ macro_rules! return_token_update {
     };
 }
 
+pub(crate) use make_token_update;
+pub(crate) use continue_if_matches_err_variant;
 pub(crate) use pull_from_token_signer;
-pub(crate) use return_token_update;

@@ -1,10 +1,11 @@
 use actix_jwt_auth_middleware::{AuthError, Authority, TokenSigner};
-use actix_web::{cookie::Cookie, test::TestRequest};
+use actix_web::cookie::Cookie;
+use actix_web::test::TestRequest;
 use chrono::{Duration, Utc};
 use exonum_crypto::KeyPair;
-use jwt_compact::{
-    alg::Ed25519, Claims, Header, ParseError, TimeOptions, ValidationError::Expired as TokenExpired,
-};
+use jwt_compact::alg::Ed25519;
+use jwt_compact::ValidationError::Expired as TokenExpired;
+use jwt_compact::{Claims, Header, ParseError, TimeOptions};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 

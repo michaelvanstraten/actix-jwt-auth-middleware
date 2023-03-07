@@ -8,16 +8,16 @@ pub type AuthResult<T> = Result<T, AuthError>;
 /**
     Crate wide error type
 
-    if ``#[cfg(debug_assertions)]` is true
+    if `#[cfg(debug_assertions)]` is true
     the wrapped errors in (Internal, RefreshAuthorizerDenied, TokenCreation, TokenParse, TokenValidation)
     are in included in the error message.
 */
 #[derive(Debug)]
 pub enum AuthError {
-    Internal(ActixWebError),
-    RefreshAuthorizerDenied(ActixWebError),
     NoToken,
     NoTokenSigner,
+    RefreshAuthorizerCall(ActixWebError),
+    RefreshAuthorizerDenied(ActixWebError),
     TokenCreation(CreationError),
     TokenParse(ParseError),
     TokenValidation(ValidationError),
@@ -29,7 +29,7 @@ impl PartialEq for AuthError {
             (Self::TokenCreation(_), Self::TokenCreation(_))
             | (Self::TokenValidation(_), Self::TokenValidation(_))
             | (Self::TokenParse(_), Self::TokenParse(_))
-            | (Self::Internal(_), Self::Internal(_)) => true,
+            | (Self::RefreshAuthorizerCall(_), Self::RefreshAuthorizerCall(_)) => true,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -64,7 +64,9 @@ impl std::fmt::Display for AuthError {
             AuthError::TokenParse(_) | AuthError::TokenValidation(_) => {
                 f.write_str("An error occurred, the provided jwt could not be processed.")
             }
-            AuthError::Internal(_) | AuthError::NoTokenSigner | AuthError::TokenCreation(_) => {
+            AuthError::RefreshAuthorizerCall(_)
+            | AuthError::NoTokenSigner
+            | AuthError::TokenCreation(_) => {
                 f.write_str("An internal error occurred. Please try again later.")
             }
         }
@@ -83,7 +85,7 @@ impl std::fmt::Display for AuthError {
             AuthError::TokenParse(err) => f.write_fmt(format_args!(
                 "An error occurred parsing the jwt.\n\t Error: \"{err}\""
             )),
-            AuthError::RefreshAuthorizerDenied(err) | AuthError::Internal(err) => {
+            AuthError::RefreshAuthorizerDenied(err) | AuthError::RefreshAuthorizerCall(err) => {
                 f.write_str(&err.to_string())
             }
         }
@@ -98,14 +100,14 @@ impl ResponseError for AuthError {
             }
             AuthError::TokenParse(_) => StatusCode::BAD_REQUEST,
             AuthError::NoToken | AuthError::TokenValidation(_) => StatusCode::UNAUTHORIZED,
-            AuthError::Internal(err) | AuthError::RefreshAuthorizerDenied(err) => {
+            AuthError::RefreshAuthorizerCall(err) | AuthError::RefreshAuthorizerDenied(err) => {
                 err.as_response_error().status_code()
             }
         }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
-            AuthError::RefreshAuthorizerDenied(err) | AuthError::Internal(err) => {
+            AuthError::RefreshAuthorizerDenied(err) | AuthError::RefreshAuthorizerCall(err) => {
                 err.error_response()
             }
             _ => HttpResponse::build(self.status_code()).body(self.to_string()),

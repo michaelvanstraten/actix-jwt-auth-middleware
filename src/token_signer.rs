@@ -149,6 +149,7 @@ where
         Internally it calls [`Self::create_header_value`] while passing the previously defined
         `refresh_token_lifetime` value on this struct.
     */
+    #[inline]
     pub fn create_refresh_header_value(&self, claims: &Claims) -> AuthResult<HeaderValue> {
         self.create_header_value(claims, self.refresh_token_lifetime)
     }
@@ -159,6 +160,7 @@ where
         Internally it calls [`Self::create_header_value`] while passing the previously defined
         `access_token_lifetime` value on this struct.
     */
+    #[inline]
     pub fn create_access_header_value(&self, claims: &Claims) -> AuthResult<HeaderValue> {
         self.create_header_value(claims, self.access_token_lifetime)
     }
@@ -199,6 +201,7 @@ where
         Internally it calls [`Self::create_cookie`] while passing the previously defined
         `access_token_name` and `access_token_lifetime` values on this struct.
     */
+    #[inline]
     pub fn create_access_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
         self.create_cookie(claims, self.access_token_name, self.access_token_lifetime)
     }
@@ -209,6 +212,7 @@ where
         Internally it calls [`Self::create_cookie`] while passing the previously defined
         `refresh_token_name` and `refresh_token_lifetime` values on this struct.
     */
+    #[inline]
     pub fn create_refresh_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
         self.create_cookie(claims, self.refresh_token_name, self.refresh_token_lifetime)
     }

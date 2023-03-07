@@ -26,6 +26,7 @@ license = "MIT"
 
 [features]
 use_jwt_on_resource = []
+query = ["dep:form_urlencoded"]
 
 [dependencies]
 serde = "1.0.145"
@@ -46,6 +47,10 @@ git = "https://github.com/slowli/jwt-compact"
 rev = "b36dc02"
 default-features = false
 features = ["std", "clock", "exonum-crypto"]
+
+[dependencies.form_urlencoded]
+version = "1.1.0"
+optional = true
 
 [dev-dependencies]
 exonum-crypto = "1.0.0"

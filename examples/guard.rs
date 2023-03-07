@@ -88,6 +88,6 @@ async fn hello(user: User) -> impl Responder {
 }
 
 #[get("/admin")]
-async fn admin(user: User) -> impl Responder {
+async fn admin() -> impl Responder {
     format!("You are an Admin, you must be importent")
 }

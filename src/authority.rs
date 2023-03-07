@@ -1,16 +1,27 @@
-use crate::helper_macros::{pull_from_token_signer, return_token_update};
+use crate::helper_macros::continue_if_matches_err_variant;
+use crate::helper_macros::make_token_update;
+use crate::helper_macros::pull_from_token_signer;
 use crate::validate::validate_jwt;
-use crate::{AuthError, AuthResult, TokenSigner};
+use crate::AuthError;
+use crate::AuthResult;
+use crate::TokenSigner;
 
 use std::marker::PhantomData;
 
 use actix_web::cookie::Cookie;
 use actix_web::dev::ServiceRequest;
 use actix_web::http::header::HeaderMap;
-use actix_web::{Error as ActixWebError, FromRequest, Handler, HttpMessage};
+use actix_web::http::header::HeaderValue;
+use actix_web::Error as ActixWebError;
+use actix_web::FromRequest;
+use actix_web::Handler;
+use actix_web::HttpMessage;
 use derive_builder::Builder;
+use jwt_compact::Algorithm;
+use jwt_compact::TimeOptions;
+use jwt_compact::Token;
+use jwt_compact::UntrustedToken;
 use jwt_compact::ValidationError::Expired as TokenExpired;
-use jwt_compact::{Algorithm, TimeOptions, Token, UntrustedToken};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -177,7 +188,7 @@ where
         &self,
         req: &mut ServiceRequest,
     ) -> AuthResult<Option<TokenUpdate>> {
-        match self.validate_cookie(&req, self.access_token_name) {
+        match self.validate_access_token(&req) {
             Ok(access_token) => {
                 let (_, claims) = access_token.into_parts();
                 req.extensions_mut().insert(claims.custom);
@@ -187,18 +198,12 @@ where
                 if self.renew_access_token_automatically =>
             {
                 self.call_refresh_authorizer(req).await?;
-                match (
-                    self.validate_cookie(&req, self.refresh_token_name),
-                    &self.token_signer,
-                ) {
+                match (self.validate_refresh_token(&req), &self.token_signer) {
                     (Ok(refresh_token), Some(token_signer)) => {
                         let (_, claims) = refresh_token.into_parts();
-
                         let access_cookie = token_signer.create_access_cookie(&claims.custom)?;
-
                         req.extensions_mut().insert(claims.custom);
-
-                        return_token_update!(access_cookie)
+                        make_token_update!(access_cookie)
                     }
                     (Err(AuthError::TokenValidation(TokenExpired)), Some(token_signer))
                         if self.renew_refresh_token_automatically =>
@@ -208,13 +213,10 @@ where
                                 .expect("Cookie has to be set in oder to get to this point")
                                 .value(),
                         );
-
                         let access_cookie = token_signer.create_access_cookie(&claims)?;
                         let refresh_cookie = token_signer.create_refresh_cookie(&claims)?;
-
                         req.extensions_mut().insert(claims);
-
-                        return_token_update!(access_cookie, refresh_cookie)
+                        make_token_update!(access_cookie, refresh_cookie)
                     }
                     (Ok(_), None) => Err(AuthError::NoTokenSigner),
                     (Err(err), _) => Err(err),
@@ -224,7 +226,38 @@ where
         }
     }
 
-    fn validate_cookie(
+    #[inline]
+    fn validate_access_token(&self, req: &ServiceRequest) -> AuthResult<Token<Claims>> {
+        self.validate_token(req, self.access_token_name)
+    }
+
+    #[inline]
+    fn validate_refresh_token(&self, req: &ServiceRequest) -> AuthResult<Token<Claims>> {
+        self.validate_token(req, self.refresh_token_name)
+    }
+
+    fn validate_token(
+        &self,
+        req: &ServiceRequest,
+        token_name: &'static str,
+    ) -> AuthResult<Token<Claims>> {
+        continue_if_matches_err_variant!(
+            self.get_token_from_query(req, token_name),
+            AuthError::NoToken
+        );
+        continue_if_matches_err_variant!(
+            self.get_token_from_header_value(req.headers(), token_name),
+            AuthError::NoToken
+        );
+        continue_if_matches_err_variant!(
+            self.get_token_from_cookie(req, token_name),
+            AuthError::NoToken
+        );
+
+        Err(AuthError::NoToken)
+    }
+
+    fn get_token_from_cookie(
         &self,
         req: &ServiceRequest,
         cookie_name: &'static str,
@@ -240,26 +273,39 @@ where
         }
     }
 
-    fn validate_header_value(
+    fn get_token_from_header_value(
         &self,
         header_map: &HeaderMap,
         header_key: &'static str,
     ) -> AuthResult<Token<Claims>> {
-        match header_map.get(header_key) {
-            Some(header_value) => match header_value.to_str() {
-                Ok(token_value) => validate_jwt(
-                    &token_value,
-                    &self.algorithm,
-                    &self.verifying_key,
-                    &self.time_options,
-                ),
-                Err(_) => Err(AuthError::NoToken),
-            },
-            None => Err(AuthError::NoToken),
+        match header_map.get(header_key).map(HeaderValue::to_str) {
+            Some(Ok(token_value)) => validate_jwt(
+                &token_value,
+                &self.algorithm,
+                &self.verifying_key,
+                &self.time_options,
+            ),
+            Some(_) | None => Err(AuthError::NoToken),
         }
     }
 
-    fn validate_query(&self) {}
+    fn get_token_from_query(
+        &self,
+        req: &ServiceRequest,
+        param_name: &'static str,
+    ) -> AuthResult<Token<Claims>> {
+        match form_urlencoded::parse(req.query_string().as_bytes())
+            .find(|(query_param_name, _)| param_name.eq(query_param_name))
+        {
+            Some((_, token_value)) => validate_jwt(
+                &token_value,
+                &self.algorithm,
+                &self.verifying_key,
+                &self.time_options,
+            ),
+            None => Err(AuthError::NoToken),
+        }
+    }
 
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
         let (mut_req, mut payload) = req.parts_mut();
@@ -269,11 +315,12 @@ where
                 .call(args)
                 .await
                 .map_err(|err| AuthError::RefreshAuthorizerDenied(err.into())),
-            Err(err) => Err(AuthError::Internal(err.into())),
+            Err(err) => Err(AuthError::RefreshAuthorizerCall(err.into())),
         }
     }
 }
 
+#[inline]
 fn extract_claims_unsafe<'a, S, Claims>(token_value: &'a S) -> Claims
 where
     S: AsRef<str> + ?Sized,
