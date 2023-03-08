@@ -122,6 +122,24 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
+       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       http headers.
+    */
+    #[builder(default = "false")]
+    enable_header_tokens: bool,
+    /**
+       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       in the query parameters.
+    */
+    #[builder(default = "false")]
+    enable_query_tokens: bool,
+    /**
+       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       in the cookies.
+    */
+    #[builder(default = "true")]
+    enable_cookie_tokens: bool,
+    /**
         Key used to verify integrity of access and refresh token.
     */
     verifying_key: Algo::VerifyingKey,
@@ -243,18 +261,24 @@ where
     }
 
     fn validate_token(&self, req: &ServiceRequest, token_name: &str) -> AuthResult<Token<Claims>> {
-        continue_if_matches_err_variant!(
-            self.get_token_from_query(req, token_name),
-            AuthError::NoToken
-        );
-        continue_if_matches_err_variant!(
-            self.get_token_from_header_value(req.headers(), token_name),
-            AuthError::NoToken
-        );
-        continue_if_matches_err_variant!(
-            self.get_token_from_cookie(req, token_name),
-            AuthError::NoToken
-        );
+        if self.enable_query_tokens {
+            continue_if_matches_err_variant!(
+                self.get_token_from_query(req, token_name),
+                AuthError::NoToken
+            )
+        }
+        if self.enable_header_tokens {
+            continue_if_matches_err_variant!(
+                self.get_token_from_header_value(req.headers(), token_name),
+                AuthError::NoToken
+            )
+        }
+        if self.enable_cookie_tokens {
+            continue_if_matches_err_variant!(
+                self.get_token_from_cookie(req, token_name),
+                AuthError::NoToken
+            )
+        }
 
         Err(AuthError::NoToken)
     }
