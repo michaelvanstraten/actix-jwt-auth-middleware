@@ -46,7 +46,7 @@ features = ["cookies"]
 git = "https://github.com/slowli/jwt-compact"
 rev = "b36dc02"
 default-features = false
-features = ["std", "clock", "exonum-crypto"]
+features = ["std", "clock"]
 
 [dev-dependencies]
 exonum-crypto = "1.0.0"
@@ -58,3 +58,8 @@ default-features = true
 
 [dev-dependencies.serde]
 features = ["derive"]
+
+[dev-dependencies.jwt-compact]
+git = "https://github.com/slowli/jwt-compact"
+rev = "b36dc02"
+features = ["exonum-crypto"]

@@ -4,7 +4,9 @@ This crate provides a derive macro for the [FromRequest](actix_web::FromRequest)
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Ident};
+use syn::parse_macro_input;
+use syn::DeriveInput;
+use syn::Ident;
 
 /**
 This macro implements the [FromRequest](actix_web::FromRequest) trait for the annotated type.
@@ -23,7 +25,7 @@ struct UserClaims {
 pub fn from_request(tokenstream: TokenStream) -> TokenStream {
     let abstract_syntax_tree = parse_macro_input!(tokenstream as DeriveInput);
     let type_identifier = abstract_syntax_tree.ident;
-    // let struct_generics = abstract_syntax_tree.generics;
+
     let lower_case_identifier = Ident::new(
         &type_identifier.to_string().to_lowercase(),
         type_identifier.span(),
