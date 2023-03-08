@@ -12,7 +12,12 @@ use jwt_compact::Algorithm as JWTAlgorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub trait JWTOnResource<Claims, Algorithm, ReAuth, Args>
+/**
+    This trait gives the ability to call [`Self::use_jwt`] on the implemented type.
+
+    It is currently behind a features flag, `use_jwt_on_resource`, because it uses some experimental rust features.
+*/
+pub trait UseJWTOnResource<Claims, Algorithm, ReAuth, Args>
 where
     Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: JWTAlgorithm + Clone,
@@ -20,6 +25,12 @@ where
     ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
     Args: FromRequest,
 {
+    /**
+        Calls `wrap` on the `scope` will passing the `authority`.
+        Then it adds the `scope` as a service on `self`.
+
+        If there is a [`crate::TokenSigner`] set on the `authority`, it is clone it and adds it as app data on `self`.
+    */
     fn use_jwt(
         self,
         authority: Authority<Claims, Algorithm, ReAuth, Args>,
@@ -34,7 +45,7 @@ where
     >;
 }
 
-impl<Claims, Algorithm, ReAuth, Args> JWTOnResource<Claims, Algorithm, ReAuth, Args> for Resource
+impl<Claims, Algorithm, ReAuth, Args> UseJWTOnResource<Claims, Algorithm, ReAuth, Args> for Resource
 where
     Claims: Serialize + DeserializeOwned + 'static,
     Algorithm: JWTAlgorithm + Clone + 'static,

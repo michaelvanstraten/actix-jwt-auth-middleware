@@ -122,20 +122,20 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
-       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
        http headers.
     */
     #[builder(default = "false")]
     enable_header_tokens: bool,
     /**
-       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
+       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
        in the query parameters.
     */
     #[builder(default = "false")]
     enable_query_tokens: bool,
     /**
-       If set to true, the service will look for [`access_token_name`] and [`refresh_token_name`] in
-       in the cookies.
+       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
+       in the cookies of the processed request.
     */
     #[builder(default = "true")]
     enable_cookie_tokens: bool,
@@ -204,7 +204,7 @@ where
     }
 
     /**
-        Use by the [`crate::AuthenticationMiddleware`]
+        Use by the the actual middleware, which is hidden from the docs,
         in order to verify an incoming request and ether hand it of to protected services
         or deny the request by return a wrapped [`AuthError`].
     */

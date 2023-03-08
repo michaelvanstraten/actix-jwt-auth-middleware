@@ -10,18 +10,16 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 # Features
 - easy use of custom jwt claims
 - automatic extraction of the custom claims
+- extraction of tokens from `query parameters`, http `headers` and `cookies`
 - verify only mode (only `public key` required)
 - automatic renewal of `access` token (customizable)
 - easy way to set expiration time of `access` and `refresh` tokens
-- simple `UseJWT` trait for protecting a `App`, `Resource` or `Scope` (experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
+- simple `UseJWT` trait for protecting a `App` or `Scope` (`Resource` is currently experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
 - refresh authorizer function that has access to application state
 
-# Crate Features
-- `use_jwt_traits` - enables the `.use_jwt()` shorthand for wrapping a `App`, `Resource` or `Scope`
-
+# Automatic Extraction of Claims
 This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
-
 ```rust
 # use actix_jwt_auth_middleware::{FromRequest};
 # use actix_web::{get, Responder};
@@ -44,7 +42,6 @@ async fn hello(user_claims: UserClaims) -> impl Responder {
     )
 }
 ```
-
 For this your custom claim type has to implement the [`FromRequest`](actix_web::FromRequest) trait
 or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
