@@ -44,19 +44,13 @@ For this your custom claim type has to implement the [`FromRequest`](actix_web::
 or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
 ## Simple Example
-```rust no_run
-## use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
-## use actix_jwt_auth_middleware::{AuthResult, Authority, FromRequest, TokenSigner};
-## use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-## use exonum_crypto::KeyPair;
-## use jwt_compact::alg::Ed25519;
-## use serde::{Deserialize, Serialize};
-##[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
+```rust
+#[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
 struct User {
     id: u32,
 }
 
-##[actix_web::main]
+#[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_pair = KeyPair::random();
 
@@ -85,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-##[get("/login")]
+#[get("/login")]
 async fn login(token_signer: web::Data<TokenSigner<User, Ed25519>>) -> AuthResult<HttpResponse> {
     let user = User { id: 1 };
     Ok(HttpResponse::Ok()
@@ -94,11 +88,11 @@ async fn login(token_signer: web::Data<TokenSigner<User, Ed25519>>) -> AuthResul
         .body("You are now logged in"))
 }
 
-##[get("/hello")]
+#[get("/hello")]
 async fn hello(user: User) -> impl Responder {
     format!("Hello there, i see your user id is {}.", user.id)
 }
-```rust
+```
 For more examples please referee to the `examples` directory.
 
 License: MIT

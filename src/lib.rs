@@ -20,7 +20,7 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 # Automatic Extraction of Claims
 This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
-```rust
+```
 # use actix_jwt_auth_middleware::{FromRequest};
 # use actix_web::{get, Responder};
 # use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ For this your custom claim type has to implement the [`FromRequest`](actix_web::
 or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
 # Simple Example
-```rust no_run
+```no_run
 # use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
 # use actix_jwt_auth_middleware::{AuthResult, Authority, FromRequest, TokenSigner};
 # use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
