@@ -1,7 +1,11 @@
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
-use actix_web::{Error as ActixWebError, HttpResponse, ResponseError};
-use jwt_compact::{CreationError, ParseError, ValidationError};
+use actix_web::Error as ActixWebError;
+use actix_web::HttpResponse;
+use actix_web::ResponseError;
+use jwt_compact::CreationError;
+use jwt_compact::ParseError;
+use jwt_compact::ValidationError;
 
 pub type AuthResult<T> = Result<T, AuthError>;
 

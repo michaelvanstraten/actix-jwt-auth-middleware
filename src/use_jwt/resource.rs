@@ -1,8 +1,13 @@
 use crate::AuthenticationService;
 use crate::Authority;
 
-use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
-use actix_web::{Error as ActixWebError, FromRequest, Handler, Resource};
+use actix_web::dev::ServiceFactory;
+use actix_web::dev::ServiceRequest;
+use actix_web::dev::ServiceResponse;
+use actix_web::Error as ActixWebError;
+use actix_web::FromRequest;
+use actix_web::Handler;
+use actix_web::Resource;
 use jwt_compact::Algorithm as JWTAlgorithm;
 use serde::de::DeserializeOwned;
 use serde::Serialize;

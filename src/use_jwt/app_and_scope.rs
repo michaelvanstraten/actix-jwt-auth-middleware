@@ -1,4 +1,5 @@
-use crate::{AuthenticationService, Authority};
+use crate::AuthenticationService;
+use crate::Authority;
 
 use actix_web::dev::ServiceFactory;
 use actix_web::dev::ServiceRequest;

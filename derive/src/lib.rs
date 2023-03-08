@@ -1,5 +1,5 @@
 /*!
- This crate provides a derive macro for the [FromRequest](actix_web::FromRequest) trait.
+This crate provides a derive macro for the [FromRequest](actix_web::FromRequest) trait.
 */
 
 use proc_macro::TokenStream;
@@ -7,17 +7,17 @@ use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Ident};
 
 /**
- This macro implements the [FromRequest](actix_web::FromRequest) trait for the annotated type.
+This macro implements the [FromRequest](actix_web::FromRequest) trait for the annotated type.
 
- ## Example
+## Example
 
- ```rust
- use actix-jwt-auth-middleware-macros::FromRequest;
- #[derive(Clone, FromRequest)]
- struct UserClaims {
-     id: u32,
-     role: Role,
- }
+```rust
+use actix-jwt-auth-middleware-macros::FromRequest;
+#[derive(Clone, FromRequest)]
+struct UserClaims {
+    id: u32,
+    role: Role,
+}
 */
 #[proc_macro_derive(FromRequest)]
 pub fn from_request(tokenstream: TokenStream) -> TokenStream {

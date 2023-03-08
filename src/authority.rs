@@ -90,8 +90,11 @@ where
         Defaults to the value of the `access_token_name` field set on the `token_signer`, if the `token_signer` is not set,
         this defaults to `"access_token"`.
     */
-    #[builder(default = "pull_from_token_signer!(self, access_token_name, \"access_token\")")]
-    pub(crate) access_token_name: &'static str,
+    #[builder(
+        default = "pull_from_token_signer!(self, access_token_name, \"access_token\".into())"
+    )]
+    #[builder(setter(into))]
+    pub(crate) access_token_name: String,
     /**
         If set to false the clients access token will not be automatically refreshed.
 
@@ -105,8 +108,11 @@ where
         Defaults to the value of the `refresh_token_name` field set on the `token_signer`,
         if the `token_signer` is not set, this defaults to `"refresh_token"`.
     */
-    #[builder(default = "pull_from_token_signer!(self, refresh_token_name, \"refresh_token\")")]
-    pub(crate) refresh_token_name: &'static str,
+    #[builder(
+        default = "pull_from_token_signer!(self, refresh_token_name, \"refresh_token\".into())"
+    )]
+    #[builder(setter(into))]
+    pub(crate) refresh_token_name: String,
     /**
         If set to true the clients refresh token will automatically refreshed,
         this allows clients to basically stay authenticated over a infinite amount of time, so i don't recommend it.
@@ -209,7 +215,7 @@ where
                         if self.renew_refresh_token_automatically =>
                     {
                         let claims = extract_claims_unsafe(
-                            req.cookie(self.refresh_token_name)
+                            req.cookie(&self.refresh_token_name)
                                 .expect("Cookie has to be set in oder to get to this point")
                                 .value(),
                         );
@@ -228,19 +234,15 @@ where
 
     #[inline]
     fn validate_access_token(&self, req: &ServiceRequest) -> AuthResult<Token<Claims>> {
-        self.validate_token(req, self.access_token_name)
+        self.validate_token(req, &self.access_token_name)
     }
 
     #[inline]
     fn validate_refresh_token(&self, req: &ServiceRequest) -> AuthResult<Token<Claims>> {
-        self.validate_token(req, self.refresh_token_name)
+        self.validate_token(req, &self.refresh_token_name)
     }
 
-    fn validate_token(
-        &self,
-        req: &ServiceRequest,
-        token_name: &'static str,
-    ) -> AuthResult<Token<Claims>> {
+    fn validate_token(&self, req: &ServiceRequest, token_name: &str) -> AuthResult<Token<Claims>> {
         continue_if_matches_err_variant!(
             self.get_token_from_query(req, token_name),
             AuthError::NoToken
@@ -260,7 +262,7 @@ where
     fn get_token_from_cookie(
         &self,
         req: &ServiceRequest,
-        cookie_name: &'static str,
+        cookie_name: &str,
     ) -> AuthResult<Token<Claims>> {
         match req.cookie(cookie_name) {
             Some(token_value) => validate_jwt(
@@ -276,7 +278,7 @@ where
     fn get_token_from_header_value(
         &self,
         header_map: &HeaderMap,
-        header_key: &'static str,
+        header_key: &str,
     ) -> AuthResult<Token<Claims>> {
         match header_map.get(header_key).map(HeaderValue::to_str) {
             Some(Ok(token_value)) => validate_jwt(
@@ -292,7 +294,7 @@ where
     fn get_token_from_query(
         &self,
         req: &ServiceRequest,
-        param_name: &'static str,
+        param_name: &str,
     ) -> AuthResult<Token<Claims>> {
         match form_urlencoded::parse(req.query_string().as_bytes())
             .find(|(query_param_name, _)| param_name.eq(query_param_name))

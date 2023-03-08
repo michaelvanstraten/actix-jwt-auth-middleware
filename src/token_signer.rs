@@ -1,4 +1,5 @@
-use crate::{AuthError, AuthResult};
+use crate::AuthError;
+use crate::AuthResult;
 
 use std::marker::PhantomData;
 
@@ -6,7 +7,11 @@ use actix_web::cookie::Cookie;
 use actix_web::http::header::HeaderValue;
 use chrono::Duration;
 use derive_builder::Builder;
-use jwt_compact::{Algorithm, AlgorithmExt, Claims as TokenClaims, Header, TimeOptions};
+use jwt_compact::Algorithm;
+use jwt_compact::AlgorithmExt;
+use jwt_compact::Claims as TokenClaims;
+use jwt_compact::Header;
+use jwt_compact::TimeOptions;
 use serde::Serialize;
 
 /**
@@ -58,8 +63,9 @@ where
 
         Defaults to `"access_token"`
     */
-    #[builder(default = "\"access_token\"")]
-    pub(crate) access_token_name: &'static str,
+    #[builder(default = "\"access_token\".into()")]
+    #[builder(setter(into))]
+    pub(crate) access_token_name: String,
     /**
         The lifetime duration of the access token.
 
@@ -74,8 +80,9 @@ where
 
         Defaults to `"refresh_token"`
     */
-    #[builder(default = "\"refresh_token\"")]
-    pub(crate) refresh_token_name: &'static str,
+    #[builder(default = "\"refresh_token\".into()")]
+    #[builder(setter(into))]
+    pub(crate) refresh_token_name: String,
     /**
         The lifetime duration of the refresh token.
 
@@ -132,15 +139,15 @@ where
     /**
         Returns the value of the `access_token_name` field on this struct.
     */
-    pub fn access_token_name(&self) -> &'static str {
-        self.access_token_name
+    pub fn access_token_name(&self) -> &str {
+        &self.access_token_name
     }
 
     /**
         Returns the value of the `refresh_token_name` field on this struct.
     */
-    pub fn refresh_token_name(&self) -> &'static str {
-        self.access_token_name
+    pub fn refresh_token_name(&self) -> &str {
+        &self.access_token_name
     }
 
     /**
@@ -203,7 +210,7 @@ where
     */
     #[inline]
     pub fn create_access_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
-        self.create_cookie(claims, self.access_token_name, self.access_token_lifetime)
+        self.create_cookie(claims, &self.access_token_name, self.access_token_lifetime)
     }
 
     /**
@@ -214,7 +221,11 @@ where
     */
     #[inline]
     pub fn create_refresh_cookie(&self, claims: &Claims) -> AuthResult<Cookie<'static>> {
-        self.create_cookie(claims, self.refresh_token_name, self.refresh_token_lifetime)
+        self.create_cookie(
+            claims,
+            &self.refresh_token_name,
+            self.refresh_token_lifetime,
+        )
     }
 
     /**
@@ -228,11 +239,13 @@ where
     pub fn create_cookie(
         &self,
         claims: &Claims,
-        cookie_name: &'static str,
+        cookie_name: &str,
         token_lifetime: Duration,
     ) -> AuthResult<Cookie<'static>> {
         let token = self.create_signed_token(claims, token_lifetime)?;
-        Ok(Cookie::build(cookie_name, token).secure(true).finish())
+        Ok(Cookie::build(cookie_name.to_string(), token)
+            .secure(true)
+            .finish())
     }
 
     /**

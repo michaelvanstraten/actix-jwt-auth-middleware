@@ -115,8 +115,6 @@ For more examples please referee to the `examples` directory.
 
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;
-/// Convinience `UseJWT` traits
-pub mod use_jwt;
 pub use authority::*;
 pub use errors::*;
 pub use middleware::*;
@@ -127,4 +125,6 @@ mod errors;
 mod helper_macros;
 mod middleware;
 mod token_signer;
+/// Convinience `UseJWT` traits
+pub mod use_jwt;
 mod validate;
