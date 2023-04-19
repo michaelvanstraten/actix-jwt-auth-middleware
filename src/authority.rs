@@ -12,6 +12,7 @@ use actix_web::cookie::Cookie;
 use actix_web::dev::ServiceRequest;
 use actix_web::http::header::HeaderMap;
 use actix_web::http::header::HeaderValue;
+use actix_web::http::header::AUTHORIZATION;
 use actix_web::Error as ActixWebError;
 use actix_web::FromRequest;
 use actix_web::Handler;
@@ -122,20 +123,26 @@ where
     #[builder(default = "false")]
     renew_refresh_token_automatically: bool,
     /**
-       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
-       http headers.
+        If set to true, the service will look for `access_token_name` and `refresh_token_name` in
+        http headers.
     */
     #[builder(default = "false")]
     enable_header_tokens: bool,
     /**
-       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
-       in the query parameters.
+        If set to true, the service will look for the [`Authorization`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization)
+        header in the http headers.
+    */
+    #[builder(default = "false")]
+    enable_authorization_header: bool,
+    /**
+        If set to true, the service will look for `access_token_name` and `refresh_token_name` in
+        in the query parameters.
     */
     #[builder(default = "false")]
     enable_query_tokens: bool,
     /**
-       If set to true, the service will look for `access_token_name` and `refresh_token_name` in
-       in the cookies of the processed request.
+        If set to true, the service will look for `access_token_name` and `refresh_token_name` in
+        in the cookies of the processed request.
     */
     #[builder(default = "true")]
     enable_cookie_tokens: bool,
@@ -162,11 +169,11 @@ where
     #[builder(default = "pull_from_token_signer!(self, time_options)")]
     time_options: TimeOptions,
     /**
-       Not Passing a [`TokenSigner`] struct will make your middleware unable to refresh the access token automatically.
+        Not Passing a [`TokenSigner`] struct will make your middleware unable to refresh the access token automatically.
 
-       You will have to provide a algorithm manually in this case because the Authority can not pull it from the `token_signer` field.
+        You will have to provide a algorithm manually in this case because the Authority can not pull it from the `token_signer` field.
 
-       Please referee to the structs own documentation for more details.
+        Please referee to the structs own documentation for more details.
     */
     #[builder(default = "None")]
     token_signer: Option<TokenSigner<Claims, Algo>>,
@@ -250,7 +257,16 @@ where
             Err(err) => Err(err),
         }
     }
+}
 
+impl<Claims, Algo, ReAuth, Args> Authority<Claims, Algo, ReAuth, Args>
+where
+    Claims: Serialize + DeserializeOwned + 'static,
+    Algo: Algorithm + Clone,
+    Algo::SigningKey: Clone,
+    ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
+    Args: FromRequest,
+{
     #[inline]
     fn validate_access_token(&self, req: &ServiceRequest) -> AuthResult<Token<Claims>> {
         self.validate_token(req, &self.access_token_name)
@@ -271,6 +287,12 @@ where
         if self.enable_header_tokens {
             continue_if_matches_err_variant!(
                 self.get_token_from_header_value(req.headers(), token_name),
+                AuthError::NoToken
+            )
+        }
+        if self.enable_authorization_header {
+            continue_if_matches_err_variant!(
+                self.get_token_from_authorization_header(req.headers()),
                 AuthError::NoToken
             )
         }
@@ -312,6 +334,30 @@ where
                 &self.verifying_key,
                 &self.time_options,
             ),
+            Some(_) | None => Err(AuthError::NoToken),
+        }
+    }
+
+    fn get_token_from_authorization_header(
+        &self,
+        header_map: &HeaderMap,
+    ) -> AuthResult<Token<Claims>> {
+        match header_map.get(AUTHORIZATION).map(HeaderValue::to_str) {
+            Some(Ok(header_value)) => {
+                let token_value = if header_value.strip_prefix("Bearer").is_some() {
+                    header_value.trim()
+                } else {
+                    // to-do: better error handling
+                    return Err(AuthError::NoToken);
+                };
+
+                validate_jwt(
+                    &token_value,
+                    &self.algorithm,
+                    &self.verifying_key,
+                    &self.time_options,
+                )
+            }
             Some(_) | None => Err(AuthError::NoToken),
         }
     }
