@@ -1,14 +1,7 @@
-# actix-jwt-auth-middleware-macros
+# actix-jwt-auth-middleware-derive
 
-This crate provides a derive macro for the `actix_web::FromRequest` trait
+This crate provides a derive macro for the [FromRequest](actix_web::FromRequest) trait.
 
-## Example
+It is part of the [`actix-jwt-auth-middleware`](https://crates.io/crates/actix-jwt-auth-middleware) crate.
 
-```rust
-use actix-jwt-auth-middleware-macros::FromRequest;
-#[derive(Clone, FromRequest)]
-struct UserClaims {
-    id: u32,
-    role: Role,
-}
-```
+License: MIT OR Apache-2.0

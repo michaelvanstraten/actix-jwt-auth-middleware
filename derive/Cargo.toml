@@ -18,5 +18,9 @@ syn = { version = "2", features = ["extra-traits"] }
 # help with generating generic impls
 derive-elves = "0.1"
 
+[dev-dependencies]
+actix-web = {version = "4", default-features = false}
+
 [lib]
+path = "src/lib.rs"
 proc-macro = true

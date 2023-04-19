@@ -15,11 +15,18 @@ This macro implements the [FromRequest](actix_web::FromRequest) trait for the an
 ## Example
 
 ```rust
-use actix-jwt-auth-middleware-macros::FromRequest;
+# use actix_jwt_auth_middleware_derive::FromRequest;
+#
 #[derive(Clone, FromRequest)]
 struct UserClaims {
     id: u32,
     role: Role,
+}
+
+#[derive(Clone, FromRequest)]
+enum Role {
+    User,
+    Admin
 }
 */
 #[proc_macro_derive(FromRequest)]
@@ -39,7 +46,7 @@ pub fn from_request(tokenstream: TokenStream) -> TokenStream {
             // stolen from https://stackoverflow.com/questions/63673447/how-can-i-pass-structs-from-an-actix-middleware-to-the-handler
 
             impl actix_web::FromRequest for #ident { // works
-                type Error = actix_web::Error;
+                type Error = ::actix_web::Error;
                 type Future = std::future::Ready<Result<Self, Self::Error>>;
                 fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
                     std::future::ready(
