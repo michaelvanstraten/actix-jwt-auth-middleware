@@ -132,6 +132,7 @@ where
     /**
         Returns a new [`TokenSignerBuilder`]
     */
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> TokenSignerBuilder<Claims, Algorithm> {
         TokenSignerBuilder::create_empty()
     }
@@ -147,7 +148,7 @@ where
         Returns the value of the `refresh_token_name` field on this struct.
     */
     pub fn refresh_token_name(&self) -> &str {
-        &self.access_token_name
+        &self.refresh_token_name
     }
 
     /**
@@ -267,7 +268,7 @@ where
 
         self.algorithm
             .token(self.header.clone(), &token_claims, &self.signing_key)
-            .map_err(|err| AuthError::TokenCreation(err))
+            .map_err(AuthError::TokenCreation)
     }
 }
 

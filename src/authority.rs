@@ -189,6 +189,7 @@ where
     /**
         Returns a new [`AuthorityBuilder`]
     */
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> AuthorityBuilder<Claims, Algo, ReAuth, Args> {
         AuthorityBuilder::default()
     }
@@ -212,7 +213,7 @@ where
         &self,
         req: &mut ServiceRequest,
     ) -> AuthResult<Option<TokenUpdate>> {
-        match self.validate_access_token(&req) {
+        match self.validate_access_token(req) {
             Ok(access_token) => {
                 let (_, claims) = access_token.into_parts();
                 req.extensions_mut().insert(claims.custom);
@@ -222,7 +223,7 @@ where
                 if self.renew_access_token_automatically =>
             {
                 self.call_refresh_authorizer(req).await?;
-                match (self.validate_refresh_token(&req), &self.token_signer) {
+                match (self.validate_refresh_token(req), &self.token_signer) {
                     (Ok(refresh_token), Some(token_signer)) => {
                         let (_, claims) = refresh_token.into_parts();
                         let access_cookie = token_signer.create_access_cookie(&claims.custom)?;
@@ -334,20 +335,20 @@ where
     }
 
     async fn call_refresh_authorizer(&self, req: &mut ServiceRequest) -> AuthResult<()> {
-        let (mut_req, mut payload) = req.parts_mut();
-        match Args::from_request(&mut_req, &mut payload).await {
+        let (mut_req, payload) = req.parts_mut();
+        match Args::from_request(mut_req, payload).await {
             Ok(args) => self
                 .refresh_authorizer
                 .call(args)
                 .await
-                .map_err(|err| AuthError::RefreshAuthorizerDenied(err.into())),
+                .map_err(AuthError::RefreshAuthorizerDenied),
             Err(err) => Err(AuthError::RefreshAuthorizerCall(err.into())),
         }
     }
 }
 
 #[inline]
-fn extract_claims_unsafe<'a, S, Claims>(token_value: &'a S) -> Claims
+fn extract_claims_unsafe<S, Claims>(token_value: &S) -> Claims
 where
     S: AsRef<str> + ?Sized,
     Claims: DeserializeOwned,

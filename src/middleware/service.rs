@@ -14,7 +14,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 #[doc(hidden)]
-pub struct AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>
+pub struct AuthenticationServiceInner<S, Claims, Algo, ReAuth, Args>
 where
     Algo: Algorithm + Clone,
     Algo::SigningKey: Clone,
@@ -25,7 +25,7 @@ where
 }
 
 impl<S, Claims, Algorithm, ReAuth, Args>
-    AuthenticationMiddleware<S, Claims, Algorithm, ReAuth, Args>
+    AuthenticationServiceInner<S, Claims, Algorithm, ReAuth, Args>
 where
     Algorithm: jwt_compact::Algorithm + Clone,
     Algorithm::SigningKey: Clone,
@@ -40,7 +40,7 @@ where
 }
 
 impl<S, Body, Claims, Algo, ReAuth, Args> Service<ServiceRequest>
-    for AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>
+    for AuthenticationServiceInner<S, Claims, Algo, ReAuth, Args>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<Body>, Error = ActixWebError> + 'static,
     Claims: Serialize + DeserializeOwned + 'static,

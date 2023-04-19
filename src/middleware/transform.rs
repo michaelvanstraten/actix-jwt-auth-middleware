@@ -1,4 +1,4 @@
-use crate::AuthenticationMiddleware;
+use crate::AuthenticationServiceInner;
 use crate::Authority;
 
 use std::future;
@@ -69,7 +69,7 @@ where
     Algo::SigningKey: Clone,
 {
     /**
-        returns a new AuthenticationService wrapping the [`Authority`]
+        returns a new `AuthenticationService` wrapping the [`Authority`]
     */
     pub fn new(
         authority: Authority<Claims, Algo, ReAuth, Args>,
@@ -92,16 +92,16 @@ where
     ReAuth: Handler<Args, Output = Result<(), ActixWebError>>,
     Args: FromRequest + 'static,
 {
-    type Response = <AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args> as Service<
+    type Response = <AuthenticationServiceInner<S, Claims, Algo, ReAuth, Args> as Service<
         ServiceRequest,
     >>::Response;
     type Error = ActixWebError;
-    type Transform = AuthenticationMiddleware<S, Claims, Algo, ReAuth, Args>;
+    type Transform = AuthenticationServiceInner<S, Claims, Algo, ReAuth, Args>;
     type InitError = ();
     type Future = future::Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ready(Ok(AuthenticationMiddleware::new(
+        future::ready(Ok(AuthenticationServiceInner::new(
             Rc::new(service),
             Arc::clone(&self.inner),
         )))

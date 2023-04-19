@@ -39,21 +39,21 @@ impl PartialEq for AuthError {
     }
 }
 
-impl Into<AuthError> for CreationError {
-    fn into(self) -> AuthError {
-        AuthError::TokenCreation(self)
+impl From<CreationError> for AuthError {
+    fn from(val: CreationError) -> Self {
+        AuthError::TokenCreation(val)
     }
 }
 
-impl Into<AuthError> for ParseError {
-    fn into(self) -> AuthError {
-        AuthError::TokenParse(self)
+impl From<ParseError> for AuthError {
+    fn from(val: ParseError) -> Self {
+        AuthError::TokenParse(val)
     }
 }
 
-impl Into<AuthError> for ValidationError {
-    fn into(self) -> AuthError {
-        AuthError::TokenValidation(self)
+impl From<ValidationError> for AuthError {
+    fn from(val: ValidationError) -> Self {
+        AuthError::TokenValidation(val)
     }
 }
 
