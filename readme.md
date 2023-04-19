@@ -9,21 +9,18 @@ It provides multiple cryptographic signing and verifying algorithms such as `HS2
 For more infos on that mater please refer to the [`Supported algorithms`](https://docs.rs/jwt-compact/latest/jwt_compact/#supported-algorithms) section of the [`jwt-compact`](https://github.com/slowli/jwt-compact) crate.
 
 ## Features
-
--   easy use of custom jwt claims
--   automatic extraction of the custom claims
--   extraction of tokens from `query` parameters, `HTTP` headers, [`Authorization`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) headers and `cookies`
--   verify only mode (`public key` only)
--   automatic renewal of `access` token (very customizable)
--   easy way to set expiration time of `access` and `refresh` tokens
--   simple `UseJWT` trait for protecting a `App` or `Scope` (`Resource` is currently experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
--   refresh authorizer function that has access to application state
+- easy use of custom jwt claims
+- automatic extraction of the custom claims
+- extraction of tokens from `query` parameters, `HTTP` header, [`Authorization`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) headers and `cookies`
+- verify only mode (`public key` only)
+- automatic renewal of `access` token (very customizable)
+- easy way to set expiration time of `access` and `refresh` tokens
+- simple `UseJWT` trait for protecting a `App` or `Scope` (`Resource` is currently experimental [#91611](https://github.com/rust-lang/rust/issues/91611))
+- refresh authorizer function that has access to application state
 
 ## Automatic Extraction of Claims
-
 This crate tightly integrates into the actix-web ecosystem,
 this makes it easy to Automatic extract the jwt claims from a valid token.
-
 ```rust
 #[derive(Serialize, Deserialize, Clone, FromRequest)]
 struct UserClaims {
@@ -43,12 +40,10 @@ async fn hello(user_claims: UserClaims) -> impl Responder {
     )
 }
 ```
-
 For this your custom claim type has to implement the [`FromRequest`](actix_web::FromRequest) trait
 or it has to be annotated with the `#[derive(actix-jwt-auth-middleware::FromRequest)]` macro which implements this trait for your type.
 
 ## Simple Example
-
 ```rust
 #[derive(Serialize, Deserialize, Clone, Debug, FromRequest)]
 struct User {
@@ -98,7 +93,6 @@ async fn hello(user: User) -> impl Responder {
     format!("Hello there, i see your user id is {}.", user.id)
 }
 ```
-
 For more examples please referee to the `examples` directory.
 
 License: MIT

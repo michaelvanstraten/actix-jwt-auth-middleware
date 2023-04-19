@@ -10,7 +10,7 @@ For more infos on that mater please refer to the [`Supported algorithms`](https:
 # Features
 - easy use of custom jwt claims
 - automatic extraction of the custom claims
-- extraction of tokens from `query parameters`, `HTTP` headers, [`Authorization`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) headers and `cookies`
+- extraction of tokens from `query` parameters, `HTTP` header, [`Authorization`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization) headers and `cookies`
 - verify only mode (`public key` only)
 - automatic renewal of `access` token (very customizable)
 - easy way to set expiration time of `access` and `refresh` tokens
