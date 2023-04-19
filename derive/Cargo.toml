@@ -1,6 +1,6 @@
 [package]
 name = "actix-jwt-auth-middleware-derive"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Michael van Straten"]
 documentation = "https://docs.rs/actix-jwt-auth-middleware-derive/"
@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 # writing and parsing rust AST
-quote = "1.1.0"
+quote = "1.0.10"
 syn = { version = "2", features = ["extra-traits"] }
 
 # help with generating generic impls
