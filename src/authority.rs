@@ -194,7 +194,7 @@ where
     Args: FromRequest,
 {
     /**
-        Returns a new [`AuthorityBuilder`]
+        Returns a new [`AuthorityBuilder`].
     */
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> AuthorityBuilder<Claims, Algo, ReAuth, Args> {
@@ -212,7 +212,7 @@ where
     }
 
     /**
-        Use by the the actual middleware, which is hidden from the docs,
+        Use by the actual middleware, which is hidden from the docs,
         in order to verify an incoming request and ether hand it of to protected services
         or deny the request by return a wrapped [`AuthError`].
     */
