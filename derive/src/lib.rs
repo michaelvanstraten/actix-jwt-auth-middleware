@@ -2,6 +2,7 @@
 This crate provides a derive macro for the [FromRequest](actix_web::FromRequest) trait.
 */
 
+use derive_elves::type_aware_impl;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_macro_input;
@@ -23,34 +24,34 @@ struct UserClaims {
 */
 #[proc_macro_derive(FromRequest)]
 pub fn from_request(tokenstream: TokenStream) -> TokenStream {
-    let abstract_syntax_tree = parse_macro_input!(tokenstream as DeriveInput);
-    let type_identifier = abstract_syntax_tree.ident;
+    let input = parse_macro_input!(tokenstream as DeriveInput);
+    let ident = &input.ident;
 
-    let lower_case_identifier = Ident::new(
-        &type_identifier.to_string().to_lowercase(),
-        type_identifier.span(),
-    );
+    let lower_case_ident = Ident::new(&ident.to_string().to_lowercase(), ident.span());
 
     let error = format!(
         "could not extract type \"{}\" from HttpRequest extensions",
-        type_identifier.to_string()
+        ident.to_string()
     );
 
-    quote!(
-        // stolen from https://stackoverflow.com/questions/63673447/how-can-i-pass-structs-from-an-actix-middleware-to-the-handler
+    type_aware_impl(
+        quote!(
+            // stolen from https://stackoverflow.com/questions/63673447/how-can-i-pass-structs-from-an-actix-middleware-to-the-handler
 
-        impl actix_web::FromRequest for #type_identifier { // works
-            type Error = actix_web::Error;
-            type Future = std::future::Ready<Result<Self, Self::Error>>;
-            fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-                std::future::ready(
-                    match <actix_web::HttpRequest as actix_web::HttpMessage>::extensions(req).get::<#type_identifier>() {
-                        Some(#lower_case_identifier) => Ok(#lower_case_identifier.clone()),
-                        None => Err(actix_web::error::ErrorBadRequest(#error))
-                    }
-                )
+            impl actix_web::FromRequest for #ident { // works
+                type Error = actix_web::Error;
+                type Future = std::future::Ready<Result<Self, Self::Error>>;
+                fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+                    std::future::ready(
+                        match <actix_web::HttpRequest as actix_web::HttpMessage>::extensions(req).get::<#ident>() {
+                            Some(#lower_case_ident) => Ok(#lower_case_ident.clone()),
+                            None => Err(actix_web::error::ErrorBadRequest(#error))
+                        }
+                    )
+                }
             }
-        }
+        ), 
+        &input
     )
     .into()
 }
