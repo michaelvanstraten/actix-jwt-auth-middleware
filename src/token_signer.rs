@@ -2,10 +2,11 @@ use crate::AuthError;
 use crate::AuthResult;
 
 use std::marker::PhantomData;
+use std::time::Duration;
 
 use actix_web::cookie::Cookie;
 use actix_web::http::header::HeaderValue;
-use chrono::Duration;
+use chrono::Duration as ChronoDuration;
 use derive_builder::Builder;
 use jwt_compact::Algorithm;
 use jwt_compact::AlgorithmExt;
@@ -21,11 +22,11 @@ use serde::Serialize;
     For example, the [`crate::Authority`] uses it to automatically refresh the `access`/`refresh` token.
     # Example
     ```rust
+    # use std::time::Duration;
     # use actix_jwt_auth_middleware::{TokenSigner, AuthError};
     # use serde::Serialize;
     # use exonum_crypto::KeyPair;
     # use jwt_compact::{alg::Ed25519, TimeOptions};
-    # use chrono::Duration;
     #[derive(Serialize, Clone)]
     struct User {
         id: u32
@@ -37,9 +38,9 @@ use serde::Serialize;
         .signing_key(key_pair.secret_key().clone())
         .access_token_name("my_access_token")
         // makes every refresh token generated be valid for 2 hours
-        .refresh_token_lifetime(Duration::minutes(120))
+        .refresh_token_lifetime(Duration::from_secs(120 * 60))
         // generated tokens can still be used up to 10 seconds after they expired
-        .time_options(TimeOptions::from_leeway(Duration::seconds(10)))
+        .time_options(TimeOptions::from_leeway(chrono::Duration::seconds(10)))
         .algorithm(Ed25519)
         .build().unwrap();
 
@@ -69,9 +70,9 @@ where
     /**
         The lifetime duration of the access token.
 
-        Defaults to `Duration::seconds(60)`
+        Defaults to `Duration::from_secs(60)`
     */
-    #[builder(default = "Duration::seconds(60)")]
+    #[builder(default = "Duration::from_secs(60)")]
     access_token_lifetime: Duration,
     /**
         The name of the future refresh tokens.
@@ -86,9 +87,9 @@ where
     /**
         The lifetime duration of the refresh token.
 
-        Defaults to `Duration::minutes(30)`
+        Defaults to `Duration::from_secs(30 * 60)`
     */
-    #[builder(default = "Duration::minutes(30)")]
+    #[builder(default = "Duration::from_secs(30 * 60)")]
     refresh_token_lifetime: Duration,
     /**
         JWT Header used in the creation of access and refresh tokens.
@@ -117,7 +118,7 @@ where
 
         Defaults to `TimeOptions::from_leeway(Duration::seconds(0))`
     */
-    #[builder(default = "TimeOptions::from_leeway(Duration::seconds(0))")]
+    #[builder(default = "TimeOptions::from_leeway(ChronoDuration::seconds(0))")]
     pub(crate) time_options: TimeOptions,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
@@ -263,8 +264,10 @@ where
         claims: &Claims,
         token_lifetime: Duration,
     ) -> AuthResult<String> {
-        let token_claims =
-            TokenClaims::new(claims).set_duration_and_issuance(&self.time_options, token_lifetime);
+        let token_claims = TokenClaims::new(claims).set_duration_and_issuance(
+            &self.time_options,
+            ChronoDuration::from_std(token_lifetime).unwrap(),
+        );
 
         self.algorithm
             .token(self.header.clone(), &token_claims, &self.signing_key)
