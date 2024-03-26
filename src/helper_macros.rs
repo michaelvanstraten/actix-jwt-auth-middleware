@@ -53,6 +53,6 @@ macro_rules! make_token_update {
     };
 }
 
-pub(crate) use make_token_update;
 pub(crate) use continue_if_matches_err_variant;
+pub(crate) use make_token_update;
 pub(crate) use pull_from_token_signer;

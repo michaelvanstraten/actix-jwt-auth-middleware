@@ -57,7 +57,7 @@ pub fn from_request(tokenstream: TokenStream) -> TokenStream {
                     )
                 }
             }
-        ), 
+        ),
         &input
     )
     .into()
