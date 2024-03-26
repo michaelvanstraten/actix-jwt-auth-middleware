@@ -16,7 +16,7 @@ quote = "1.0.10"
 syn = { version = "2", features = ["extra-traits"] }
 
 # help with generating generic impls
-derive-elves = "0.1"
+derive-elves = "0.1.2"
 
 [dev-dependencies]
 actix-web = {version = "4", default-features = false}
