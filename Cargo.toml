@@ -44,7 +44,7 @@ default_features = false
 features = ["cookies"]
 
 [dependencies.jwt-compact]
-version = "0.7.0"
+version = "0.8.0"
 default-features = false
 features = ["std", "clock"]
 
@@ -54,10 +54,13 @@ lazy_static = "1.4.0"
 actix-state-guards = "0.1.0"
 
 [dev-dependencies.actix-web]
+version = "4.2.1"
 default-features = true
 
 [dev-dependencies.serde]
+serde = "1.0.145"
 features = ["derive"]
 
 [dev-dependencies.jwt-compact]
+version = "0.8.0"
 features = ["exonum-crypto"]

@@ -270,7 +270,7 @@ where
         );
 
         self.algorithm
-            .token(self.header.clone(), &token_claims, &self.signing_key)
+            .token(&self.header, &token_claims, &self.signing_key)
             .map_err(AuthError::TokenCreation)
     }
 }
