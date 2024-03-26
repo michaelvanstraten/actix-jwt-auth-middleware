@@ -1,7 +1,7 @@
 use actix_jwt_auth_middleware::{AuthError, Authority, TokenSigner};
 use actix_web::cookie::Cookie;
 use actix_web::test::TestRequest;
-use chrono::{Duration, Utc};
+use chrono::{Duration, TimeDelta, Utc};
 use exonum_crypto::KeyPair;
 use jwt_compact::alg::Ed25519;
 use jwt_compact::ValidationError::Expired as TokenExpired;
@@ -107,8 +107,8 @@ async fn no_token() {
 async fn expired_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .time_options(TimeOptions::new(Duration::seconds(0), || {
-            Utc::now() + Duration::minutes(5)
+        .time_options(TimeOptions::new(TimeDelta::zero(), || {
+            Utc::now() + TimeDelta::try_minutes(5).unwrap()
         }))
         .verifying_key(KEY_PAIR.public_key())
         .renew_access_token_automatically(false)
@@ -133,8 +133,8 @@ async fn expired_token() {
 async fn nonce_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .time_options(TimeOptions::new(Duration::seconds(0), || {
-            Utc::now() + Duration::minutes(5)
+        .time_options(TimeOptions::new(TimeDelta::zero(), || {
+            Utc::now() + TimeDelta::try_minutes(5).unwrap()
         }))
         .verifying_key(KEY_PAIR.public_key())
         .renew_access_token_automatically(false)

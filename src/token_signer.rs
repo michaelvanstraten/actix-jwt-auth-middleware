@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use actix_web::cookie::Cookie;
 use actix_web::http::header::HeaderValue;
-use chrono::Duration as ChronoDuration;
+use chrono::TimeDelta;
 use derive_builder::Builder;
 use jwt_compact::Algorithm;
 use jwt_compact::AlgorithmExt;
@@ -118,7 +118,7 @@ where
 
         Defaults to `TimeOptions::from_leeway(Duration::seconds(0))`
     */
-    #[builder(default = "TimeOptions::from_leeway(ChronoDuration::seconds(0))")]
+    #[builder(default = "TimeOptions::from_leeway(TimeDelta::try_seconds(0).unwrap())")]
     pub(crate) time_options: TimeOptions,
     #[doc(hidden)]
     #[builder(setter(skip), default = "PhantomData")]
@@ -266,7 +266,7 @@ where
     ) -> AuthResult<String> {
         let token_claims = TokenClaims::new(claims).set_duration_and_issuance(
             &self.time_options,
-            ChronoDuration::from_std(token_lifetime).unwrap(),
+            TimeDelta::from_std(token_lifetime).unwrap(),
         );
 
         self.algorithm

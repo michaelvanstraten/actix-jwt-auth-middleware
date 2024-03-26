@@ -38,7 +38,7 @@ pub fn from_request(tokenstream: TokenStream) -> TokenStream {
 
     let error = format!(
         "could not extract type \"{}\" from HttpRequest extensions",
-        ident.to_string()
+        ident
     );
 
     type_aware_impl(
