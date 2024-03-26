@@ -104,12 +104,6 @@ async fn hello(user: User) -> impl Responder {
 For more examples please referee to the `examples` directory.
 */
 
-#![cfg_attr(
-    feature = "use_jwt_on_resource",
-    feature(return_position_impl_trait_in_trait),
-    allow(incomplete_features)
-)]
-
 #[doc(inline)]
 pub use actix_jwt_auth_middleware_derive::FromRequest;
 pub use authority::*;

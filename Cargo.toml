@@ -3,7 +3,7 @@ members = ["derive", "./."]
 
 [package]
 name = "actix-jwt-auth-middleware"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Michael van Straten"]
 repository = "https://github.com/michaelvanstraten/actix-jwt-auth-middleware"
@@ -24,9 +24,7 @@ categories = [
 readme = "readme.md"
 description = "This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework."
 license = "MIT"
-
-[features]
-use_jwt_on_resource = []
+rust-version = "1.75"
 
 [dependencies]
 serde = "1.0.145"
