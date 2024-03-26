@@ -6,7 +6,7 @@ use actix_state_guards::UseStateGuardOnScope;
 use actix_web::error::InternalError;
 use actix_web::http::StatusCode;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use exonum_crypto::KeyPair;
+use ed25519_compact::KeyPair;
 use jwt_compact::alg::Ed25519;
 use serde::{Deserialize, Serialize};
 
@@ -24,19 +24,22 @@ enum Role {
 
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let key_pair = KeyPair::random();
+    let KeyPair {
+        pk: public_key,
+        sk: secret_key,
+    } = KeyPair::generate();
 
     HttpServer::new(move || {
         let authority = Authority::<User, Ed25519, _, _>::new()
             .refresh_authorizer(|| async move { Ok(()) })
             .token_signer(Some(
                 TokenSigner::new()
-                    .signing_key(key_pair.secret_key().clone())
+                    .signing_key(secret_key.clone())
                     .algorithm(Ed25519)
                     .build()
                     .expect(""),
             ))
-            .verifying_key(key_pair.public_key())
+            .verifying_key(public_key)
             .build()
             .expect("");
 

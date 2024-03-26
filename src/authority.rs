@@ -45,18 +45,18 @@ pub struct TokenUpdate {
     ```rust
     # use actix_jwt_auth_middleware::{Authority, TokenSigner, AuthorityBuilderError};
     # use jwt_compact::alg::Ed25519;
-    # use exonum_crypto::KeyPair;
-    # let key_pair = KeyPair::random();
+    # use ed25519_compact::KeyPair;
+    # let KeyPair {sk: secret_key, pk: public_key} = KeyPair::generate();
     let authority = Authority::<(), Ed25519, _, _>::new()
         .refresh_authorizer(|| async move { Ok(()) })
         .token_signer(Some(
             TokenSigner::new()
-                .signing_key(key_pair.secret_key().clone())
+                .signing_key(secret_key)
                 .algorithm(Ed25519)
                 .build()
                 .expect(""),
         ))
-        .verifying_key(key_pair.public_key())
+        .verifying_key(public_key)
         .build()?;
     # Ok::<(), AuthorityBuilderError>(())
     ```

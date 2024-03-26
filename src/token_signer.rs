@@ -25,17 +25,20 @@ use serde::Serialize;
     # use std::time::Duration;
     # use actix_jwt_auth_middleware::{TokenSigner, AuthError};
     # use serde::Serialize;
-    # use exonum_crypto::KeyPair;
+    # use ed25519_compact::KeyPair;
     # use jwt_compact::{alg::Ed25519, TimeOptions};
     #[derive(Serialize, Clone)]
     struct User {
         id: u32
     }
 
-    let key_pair = KeyPair::random();
+    let KeyPair {
+        sk: secret_key,
+        ..
+    } = KeyPair::generate();
 
     let token_signer = TokenSigner::<User, _>::new()
-        .signing_key(key_pair.secret_key().clone())
+        .signing_key(secret_key)
         .access_token_name("my_access_token")
         // makes every refresh token generated be valid for 2 hours
         .refresh_token_lifetime(Duration::from_secs(120 * 60))
