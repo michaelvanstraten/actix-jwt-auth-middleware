@@ -30,7 +30,7 @@ use_jwt_on_resource = []
 
 [dependencies]
 serde = "1.0.145"
-derive_builder = "0.11.2"
+derive_builder = "0.20.0"
 chrono = "0.4.22"
 form_urlencoded = "1.1.0"
 
