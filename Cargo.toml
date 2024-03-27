@@ -47,7 +47,6 @@ default-features = false
 features = ["std", "clock"]
 
 [dev-dependencies]
-exonum-crypto = "1.0.0"
 lazy_static = "1.4.0"
 actix-state-guards = "0.1.0"
 ed25519-compact = "2.1.1"
