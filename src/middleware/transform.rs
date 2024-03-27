@@ -21,7 +21,7 @@ use serde::Serialize;
    use actix_jwt_auth_middleware::{TokenSigner, Authority, AuthenticationService};
    use actix_web::{web, App};
    use serde::{Serialize, Deserialize};
-   use exonum_crypto::KeyPair;
+   use ed25519_compact::KeyPair;
    use jwt_compact::{alg::Ed25519};
 
    #[derive(Serialize, Deserialize, Clone)]
@@ -29,18 +29,21 @@ use serde::Serialize;
        id: u32
    }
 
-   let key_pair = KeyPair::random();
+   let KeyPair {
+       pk: public_key,
+       sk: secret_key,
+   } = KeyPair::generate();
 
    let authority = Authority::<User, _, _, _>::new()
        .refresh_authorizer(|| async move { Ok(()) })
        .token_signer(Some(
            TokenSigner::new()
-               .signing_key(key_pair.secret_key().clone())
+               .signing_key(secret_key)
                .algorithm(Ed25519)
                .build()
                .unwrap()
        ))
-       .verifying_key(key_pair.public_key().clone())
+       .verifying_key(public_key)
        .build()
        .unwrap();
 

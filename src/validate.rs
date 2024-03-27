@@ -21,7 +21,10 @@ where
 {
     match UntrustedToken::new(&value) {
         Ok(untrusted_token) => {
-            match algorithm.validate_integrity::<Claims>(&untrusted_token, verifying_key) {
+            match algorithm
+                .validator(verifying_key)
+                .validate(&untrusted_token)
+            {
                 Ok(token) => match token.claims().validate_expiration(time_options) {
                     Ok(_) => Ok(token),
                     Err(err) => Err(AuthError::TokenValidation(err)),

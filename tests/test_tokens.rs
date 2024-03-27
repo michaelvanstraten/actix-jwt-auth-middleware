@@ -1,8 +1,8 @@
 use actix_jwt_auth_middleware::{AuthError, Authority, TokenSigner};
 use actix_web::cookie::Cookie;
 use actix_web::test::TestRequest;
-use chrono::{Duration, Utc};
-use exonum_crypto::KeyPair;
+use chrono::{Duration, TimeDelta, Utc};
+use ed25519_compact::KeyPair;
 use jwt_compact::alg::Ed25519;
 use jwt_compact::ValidationError::Expired as TokenExpired;
 use jwt_compact::{Claims, Header, ParseError, TimeOptions};
@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 struct TestClaims {}
 
 lazy_static! {
-    static ref KEY_PAIR: KeyPair = KeyPair::random();
+    static ref KEY_PAIR: KeyPair = KeyPair::generate();
     static ref TIME_OPTIONS: TimeOptions = TimeOptions::from_leeway(Duration::min_value());
     static ref HEADER: Header = Header::default();
     static ref CLAIMS: Claims<TestClaims> = Claims::new(TestClaims {});
     static ref TOKEN_SIGNER: TokenSigner<TestClaims, Ed25519> = TokenSigner::new()
         .algorithm(Ed25519)
-        .signing_key(KEY_PAIR.secret_key().clone())
+        .signing_key(KEY_PAIR.sk.clone())
         .build()
         .unwrap();
 }
@@ -28,7 +28,7 @@ lazy_static! {
 async fn valid_access_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .time_options(*TIME_OPTIONS)
         .refresh_authorizer(|| async { Ok(()) })
         .build()
@@ -45,7 +45,7 @@ async fn valid_access_token() {
 async fn deactivated_access_token_header() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .time_options(*TIME_OPTIONS)
         .refresh_authorizer(|| async { Ok(()) })
         .build()
@@ -69,7 +69,7 @@ async fn deactivated_access_token_header() {
 #[actix_web::test]
 async fn valid_refresh_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .token_signer(Some(TOKEN_SIGNER.clone()))
         .refresh_authorizer(|| async { Ok(()) })
         .build()
@@ -86,7 +86,7 @@ async fn valid_refresh_token() {
 async fn no_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .time_options(*TIME_OPTIONS)
         .refresh_authorizer(|| async { Ok(()) })
         .build()
@@ -107,10 +107,10 @@ async fn no_token() {
 async fn expired_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .time_options(TimeOptions::new(Duration::seconds(0), || {
-            Utc::now() + Duration::minutes(5)
+        .time_options(TimeOptions::new(TimeDelta::zero(), || {
+            Utc::now() + TimeDelta::try_minutes(5).unwrap()
         }))
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .renew_access_token_automatically(false)
         .refresh_authorizer(|| async { Ok(()) })
         .build()
@@ -133,10 +133,10 @@ async fn expired_token() {
 async fn nonce_token() {
     let authority: Authority<TestClaims, _, _, _> = Authority::new()
         .algorithm(Ed25519)
-        .time_options(TimeOptions::new(Duration::seconds(0), || {
-            Utc::now() + Duration::minutes(5)
+        .time_options(TimeOptions::new(TimeDelta::zero(), || {
+            Utc::now() + TimeDelta::try_minutes(5).unwrap()
         }))
-        .verifying_key(KEY_PAIR.public_key())
+        .verifying_key(KEY_PAIR.pk)
         .renew_access_token_automatically(false)
         .refresh_authorizer(|| async { Ok(()) })
         .build()
