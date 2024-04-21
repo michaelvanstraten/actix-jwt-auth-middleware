@@ -344,8 +344,8 @@ where
     ) -> AuthResult<Token<Claims>> {
         match header_map.get(AUTHORIZATION).map(HeaderValue::to_str) {
             Some(Ok(header_value)) => {
-                let token_value = if header_value.strip_prefix("Bearer").is_some() {
-                    header_value.trim()
+                let token_value = if let Some(token_value) = header_value.strip_prefix("Bearer") {
+                    token_value.trim()
                 } else {
                     // to-do: better error handling
                     return Err(AuthError::NoToken);
