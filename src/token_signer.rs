@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use actix_web::cookie::Cookie;
+use actix_web::cookie::CookieBuilder;
 use actix_web::http::header::HeaderValue;
 use chrono::TimeDelta;
 use derive_builder::Builder;
@@ -77,6 +78,14 @@ where
     */
     #[builder(default = "Duration::from_secs(60)")]
     access_token_lifetime: Duration,
+    /**
+        Specify cookie parameters like Path, HttpOnly or SameSite.
+        Example usage `.access_token_cookie_adjust(|builder: CookieBuilder| builder.path("/"))`
+
+        Defaults to the identity function (`|builder: CookieBuilder| builder`).
+    */
+    #[builder(default = "|builder: CookieBuilder| builder")]
+    cookie_adjust: fn(CookieBuilder) -> CookieBuilder,
     /**
         The name of the future refresh tokens.
 
@@ -248,9 +257,8 @@ where
         token_lifetime: Duration,
     ) -> AuthResult<Cookie<'static>> {
         let token = self.create_signed_token(claims, token_lifetime)?;
-        Ok(Cookie::build(cookie_name.to_string(), token)
-            .secure(true)
-            .finish())
+        let cookie_builder = Cookie::build(cookie_name.to_string(), token).secure(true);
+        Ok((self.cookie_adjust)(cookie_builder).finish())
     }
 
     /**
@@ -290,6 +298,7 @@ where
             access_token_lifetime: Clone::clone(&self.access_token_lifetime),
             refresh_token_name: Clone::clone(&self.refresh_token_name),
             refresh_token_lifetime: Clone::clone(&self.refresh_token_lifetime),
+            cookie_adjust: Clone::clone(&self.cookie_adjust),
             header: Clone::clone(&self.header),
             algorithm: Clone::clone(&self.algorithm),
             signing_key: Clone::clone(&self.signing_key),
