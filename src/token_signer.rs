@@ -80,12 +80,12 @@ where
     access_token_lifetime: Duration,
     /**
         Specify cookie parameters like Path, HttpOnly or SameSite.
-        Example usage `.access_token_cookie_adjust(|builder: CookieBuilder| builder.path("/"))`
+        Example usage `.cookie_builder(Cookie::build("", "").secure(true).path("/"))`
 
-        Defaults to the identity function (`|builder: CookieBuilder| builder`).
+        Defaults to (`Cookie::build("", "").secure(true)`).
     */
-    #[builder(default = "|builder: CookieBuilder| builder")]
-    cookie_adjust: fn(CookieBuilder) -> CookieBuilder,
+    #[builder(default = "Cookie::build(\"\", \"\").secure(true)")]
+    cookie_builder: CookieBuilder<'static>,
     /**
         The name of the future refresh tokens.
 
@@ -257,8 +257,10 @@ where
         token_lifetime: Duration,
     ) -> AuthResult<Cookie<'static>> {
         let token = self.create_signed_token(claims, token_lifetime)?;
-        let cookie_builder = Cookie::build(cookie_name.to_string(), token).secure(true);
-        Ok((self.cookie_adjust)(cookie_builder).finish())
+        let mut cookie = self.cookie_builder.clone().finish();
+        cookie.set_name(cookie_name.to_string());
+        cookie.set_value(token);
+        Ok(cookie)
     }
 
     /**
@@ -298,7 +300,7 @@ where
             access_token_lifetime: Clone::clone(&self.access_token_lifetime),
             refresh_token_name: Clone::clone(&self.refresh_token_name),
             refresh_token_lifetime: Clone::clone(&self.refresh_token_lifetime),
-            cookie_adjust: Clone::clone(&self.cookie_adjust),
+            cookie_builder: Clone::clone(&self.cookie_builder),
             header: Clone::clone(&self.header),
             algorithm: Clone::clone(&self.algorithm),
             signing_key: Clone::clone(&self.signing_key),
