@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use actix_web::cookie::Cookie;
+use actix_web::cookie::SameSite;
 use actix_web::http::header::HeaderValue;
 use chrono::TimeDelta;
 use derive_builder::Builder;
@@ -249,6 +250,7 @@ where
     ) -> AuthResult<Cookie<'static>> {
         let token = self.create_signed_token(claims, token_lifetime)?;
         Ok(Cookie::build(cookie_name.to_string(), token)
+            .same_site(SameSite::Strict)
             .secure(true)
             .finish())
     }
