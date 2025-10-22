@@ -28,7 +28,7 @@ rust-version = "1.75"
 
 [dependencies]
 serde = "1.0.145"
-derive_builder = "0.11.2"
+derive_builder = "0.20.2"
 chrono = "0.4.22"
 form_urlencoded = "1.1.0"
 
