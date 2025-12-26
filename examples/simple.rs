@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_jwt_auth_middleware::use_jwt::UseJWTOnApp;
 use actix_jwt_auth_middleware::{AuthResult, Authority, FromRequest, TokenSigner};
 
@@ -17,8 +18,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pk: public_key,
         sk: secret_key,
     } = KeyPair::generate();
-
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("https://www.rust-lang.org")
+            .allow_any_header()
+            .allow_any_method();
+
         let authority = Authority::<User, Ed25519, _, _>::new()
             .refresh_authorizer(|| async move { Ok(()) })
             .token_signer(Some(
@@ -33,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("");
 
         App::new()
+            .wrap(cors)
             .service(login)
             .use_jwt(authority, web::scope("").service(hello))
     })

@@ -8,18 +8,12 @@ edition = "2021"
 authors = ["Michael van Straten"]
 repository = "https://github.com/michaelvanstraten/actix-jwt-auth-middleware"
 documentation = "https://docs.rs/actix-jwt-auth-middleware/"
-keywords = [
-    "web",
-    "middleware",
-    "authentication",
-    "utility",
-    "actix-web",
-]
+keywords = ["web", "middleware", "authentication", "utility", "actix-web"]
 categories = [
-    "authentication",
-    "cryptography",
-    "web-programming",
-    "web-programming::http-server",
+  "authentication",
+  "cryptography",
+  "web-programming",
+  "web-programming::http-server",
 ]
 readme = "readme.md"
 description = "This crate implements a JSON Webtoken (JWT) middleware for the actix-web framework."
@@ -31,6 +25,7 @@ serde = "1.0.145"
 derive_builder = "0.11.2"
 chrono = "0.4.22"
 form_urlencoded = "1.1.0"
+actix-cors = "0.7.1"
 
 [dependencies.actix-jwt-auth-middleware-derive]
 path = "derive"
